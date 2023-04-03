@@ -50,11 +50,10 @@ void HookLoader::LoadHooks() {
     while (it != m_Hooks.End()) {
         HookModule *hook = *it;
         assert(hook != nullptr);
-        auto &info = hook->GetInfo();
 
         if (!hook->Load()) {
-            utils::OutputDebugA("%s: Hook \"%s\" is not loadable, it will be unregistered.", __FUNCTION__, info.name.CStr());
-            m_HookMap.Remove(info.name);
+            utils::OutputDebugA("%s: Hook \"%s\" is not loadable, it will be unregistered.", __FUNCTION__, hook->GetInfo().name.CStr());
+            m_HookMap.Remove(hook->GetInfo().name);
             it = m_Hooks.Remove(it);
             DestroyHook(hook);
         } else {
@@ -70,11 +69,10 @@ void HookLoader::UnloadHooks() {
     while (it != m_Hooks.REnd()) {
         HookModule *hook = *it;
         assert(hook != nullptr);
-        auto &info = hook->GetInfo();
 
         hook->Unload();
 
-        m_HookMap.Remove(info.name);
+        m_HookMap.Remove(hook->GetInfo().name);
         m_Hooks.PopBack();
         DestroyHook(hook);
         --it;
@@ -90,8 +88,7 @@ void HookLoader::IterateHooks(HookModuleCallback callback, void *arg) {
         assert(hook != nullptr);
 
         if (callback(hook, arg) == HMR_TERMINATE) {
-            auto &info = hook->GetInfo();
-            m_HookMap.Remove(info.name);
+            m_HookMap.Remove(hook->GetInfo().name);
             it = m_Hooks.Remove(it);
             DestroyHook(hook);
         } else {
