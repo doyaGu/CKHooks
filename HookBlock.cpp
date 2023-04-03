@@ -7,6 +7,8 @@
 //////////////////////////////////
 #include "CKAll.h"
 
+typedef int (*CKBehaviorCallback)(const CKBehaviorContext *behcontext, void *arg);
+
 CKObjectDeclaration *FillBehaviorHookBlockDecl();
 CKERROR CreateHookBlockProto(CKBehaviorPrototype **pproto);
 int HookBlock(const CKBehaviorContext &behcontext);
@@ -48,14 +50,13 @@ int HookBlock(const CKBehaviorContext &behcontext) {
         beh->ActivateInput(i, FALSE);
     }
 
-    typedef int (*Callback)(void *arg);
     int ret = CKBR_OK;
-    Callback cb = nullptr;
+    CKBehaviorCallback cb = nullptr;
     beh->GetLocalParameterValue(0, &cb);
     if (cb) {
         void *arg = nullptr;
         beh->GetLocalParameterValue(1, &arg);
-        ret = cb(arg);
+        ret = cb(&behcontext, arg);
     }
 
     count = beh->GetOutputCount();
