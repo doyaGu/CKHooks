@@ -1,0 +1,37 @@
+#include "Version.h"
+#include "winres.h"
+
+// Version
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION HOOKS_MAJOR_VER, HOOKS_MINOR_VER, HOOKS_PATCH_VER, 0
+ PRODUCTVERSION HOOKS_MAJOR_VER, HOOKS_MINOR_VER, HOOKS_PATCH_VER, 0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Kakuty"
+            VALUE "FileDescription", "Virtools Hook Loader"
+            VALUE "FileVersion", HOOKS_VERSION
+            VALUE "InternalName", "Hooks.dll"
+            VALUE "LegalCopyright", "Copyright (C) 2023"
+            VALUE "OriginalFilename", "Hooks.dll"
+            VALUE "ProductName", "Virtools Hook Loader"
+            VALUE "ProductVersion", HOOKS_VERSION
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
