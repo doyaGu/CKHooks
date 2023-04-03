@@ -255,14 +255,14 @@ static int OnSet(size_t code, void **pcb, void **parg) {
             *pcb = reinterpret_cast<void*>(PostClearAll);
             *parg = nullptr;
             break;
-//        case CKHFI_OnCKInit:
-//            *pcb = reinterpret_cast<void*>(OnCKInit);
-//            *parg = nullptr;
-//            break;
-//        case CKHFI_OnCKEnd:
-//            *pcb = reinterpret_cast<void*>(OnCKEnd);
-//            *parg = nullptr;
-//            break;
+       case CKHFI_OnCKInit:
+           *pcb = reinterpret_cast<void*>(OnCKInit);
+           *parg = nullptr;
+           break;
+       case CKHFI_OnCKEnd:
+           *pcb = reinterpret_cast<void*>(OnCKEnd);
+           *parg = nullptr;
+           break;
         case CKHFI_OnCKPlay:
             *pcb = reinterpret_cast<void*>(OnCKPlay);
             *parg = nullptr;
@@ -363,14 +363,14 @@ static int OnUnset(size_t code, void **pcb, void **parg) {
             *pcb = reinterpret_cast<void*>(PostClearAll);
             *parg = nullptr;
             break;
-//        case CKHFI_OnCKInit:
-//            *pcb = reinterpret_cast<void*>(OnCKInit);
-//            *parg = nullptr;
-//            break;
-//        case CKHFI_OnCKEnd:
-//            *pcb = reinterpret_cast<void*>(OnCKEnd);
-//            *parg = nullptr;
-//            break;
+       case CKHFI_OnCKInit:
+           *pcb = reinterpret_cast<void*>(OnCKInit);
+           *parg = nullptr;
+           break;
+       case CKHFI_OnCKEnd:
+           *pcb = reinterpret_cast<void*>(OnCKEnd);
+           *parg = nullptr;
+           break;
         case CKHFI_OnCKPlay:
             *pcb = reinterpret_cast<void*>(OnCKPlay);
             *parg = nullptr;
