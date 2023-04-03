@@ -94,8 +94,9 @@ void HookLoader::IterateHooks(HookModuleCallback callback, void *arg) {
             m_HookMap.Remove(info.name);
             it = m_Hooks.Remove(it);
             DestroyHook(hook);
+        } else {
+            ++it;
         }
-        ++it;
     }
 }
 
