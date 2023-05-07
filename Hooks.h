@@ -1,7 +1,10 @@
 #ifndef HOOKS_H
 #define HOOKS_H
 
-#include "Version.h"
+#define HOOKS_MAJOR_VER 0
+#define HOOKS_MINOR_VER 1
+#define HOOKS_PATCH_VER 0
+#define HOOKS_VERSION "0.1.0"
 
 #if (defined(_MSC_VER) || defined(__MINGW32__))
 #define HOOKS_EXPORT extern "C" __declspec(dllexport)
@@ -13,7 +16,7 @@
 extern "C" {
 #endif
 
-#include "stdint.h"
+#include <stdint.h>
 
 #define HOOKS_ABI_VERSION 1
 
