@@ -206,22 +206,22 @@ CKDWORD HookManager::GetValidFunctionsMask() {
 
 void HookManager::AddPreClearAllCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
     if (!func) return;
-    HM_ADD_CALLBACK(PreProcess, func, arg, temp);
+    HM_ADD_CALLBACK(PreClearAll, func, arg, temp);
 }
 
 void HookManager::RemovePreClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
     if (!func) return;
-    HM_REMOVE_CALLBACK(PreProcess, func, arg);
+    HM_REMOVE_CALLBACK(PreClearAll, func, arg);
 }
 
 void HookManager::AddPostClearAllCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
     if (!func) return;
-    HM_ADD_CALLBACK(PostProcess, func, arg, temp);
+    HM_ADD_CALLBACK(PostClearAll, func, arg, temp);
 }
 
 void HookManager::RemovePostClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
     if (!func) return;
-    HM_REMOVE_CALLBACK(PostProcess, func, arg);
+    HM_REMOVE_CALLBACK(PostClearAll, func, arg);
 }
 
 void HookManager::AddPreProcessCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
