@@ -68,6 +68,8 @@ add_compile_definitions(
 
 configure_file(Version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/Version.h)
 
+set(HOOKS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
 set(HOOKS_SOURCES
         Plugin.cpp
         HookBlock.cpp
@@ -91,6 +93,4 @@ add_library(Hooks SHARED ${HOOKS_SOURCES})
 target_include_directories(Hooks PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Hooks PRIVATE CK2 VxMath minhook cjson)
 
-add_library(TestModule SHARED TestModule.cpp)
-target_include_directories(TestModule PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(TestModule PRIVATE CK2 VxMath)
+add_subdirectory(test)
