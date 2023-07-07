@@ -35,7 +35,7 @@ namespace utils {
                 return path.Substring(0, path.RFind('.'));
         } else {
             const XString de = XString(".") + ext;
-            if (path.IEndsWith(de)) {
+            if (StringIEndsWith(path, de)) {
                 return path.Substring(0, path.Length() - de.Length());
             }
         }
@@ -43,7 +43,7 @@ namespace utils {
     }
 
     XString JoinPaths(const XString &path1, const XString &path2) {
-        if (path1.Empty()) return path2;
+        if (path1.Length() == 0) return path2;
         return RemoveTrailingPathSeparator(path1) + "\\" + path2;
     }
 
@@ -52,7 +52,7 @@ namespace utils {
     }
 
     bool IsFileExist(const XString &file) {
-        if (!file.Empty()) {
+        if (file.Length() != 0) {
             struct stat fstat = {0};
             memset(&fstat, 0, sizeof(struct stat));
             return stat(file.CStr(), &fstat) == 0 && (fstat.st_mode & S_IFREG);
@@ -61,7 +61,7 @@ namespace utils {
     }
 
     bool IsDirectoryExist(const XString &dir) {
-        if (!dir.Empty()) {
+        if (dir.Length() != 0) {
             struct stat fstat = {0};
             memset(&fstat, 0, sizeof(struct stat));
             return stat(dir.CStr(), &fstat) == 0 && (fstat.st_mode & S_IFDIR);
@@ -70,14 +70,14 @@ namespace utils {
     }
 
     bool IsAbsolutePath(const XString &path) {
-        if (path.Empty()) return false;
+        if (path.Length() == 0) return false;
         if (path.Length() < 2 || !isalpha(path[0]) || path[1] != ':')
             return false;
         return true;
     }
 
     XString GetAbsolutePath(const XString &path, bool trailing) {
-        if (path.Empty() || IsAbsolutePath(path))
+        if (path.Length() == 0 || IsAbsolutePath(path))
             return path;
 
         XArray<char> buf(MAX_PATH);
@@ -116,7 +116,7 @@ namespace utils {
     }
 
     bool HasTrailingPathSeparator(const XString &path) {
-        return !path.Empty() && path.EndsWith("\\");
+        return path.Length() != 0 && StringEndsWith(path, "\\");
     }
 
     XString RemoveTrailingPathSeparator(const XString &path) {
@@ -160,19 +160,19 @@ namespace utils {
         ::OutputDebugStringW(buf);
     }
 
-    wchar_t *AnsiToUtf16(const char *str) {
-        if (!str) return nullptr;
-        int size = ::MultiByteToWideChar(CP_ACP, 0, str, -1, nullptr, 0);
-        auto wstr = (wchar_t *) new wchar_t[size];
-        ::MultiByteToWideChar(CP_ACP, 0, str, -1, wstr, size);
-        return wstr;
+    bool StringEndsWith(const XString &str1, const XString &str2) {
+        if (str1.Length() >= str2.Length()) {
+            const char *str = str1.CStr() + (str1.Length() - str2.Length());
+            return strncmp(str, str2.CStr(), str2.Length()) == 0;
+        }
+        return false;
     }
 
-    char *Utf16ToAnsi(const wchar_t *wstr) {
-        if (!wstr) return nullptr;
-        int size = ::WideCharToMultiByte(CP_ACP, 0, wstr, -1, nullptr, 0, nullptr, nullptr);
-        auto str = (char *) new char[size];
-        ::WideCharToMultiByte(CP_ACP, 0, wstr, -1, str, size, nullptr, nullptr);
-        return str;
+    bool StringIEndsWith(const XString &str1, const XString &str2) {
+        if (str1.Length() >= str2.Length()) {
+            const char *str = str1.CStr() + (str1.Length() - str2.Length());
+            return strnicmp(str, str2.CStr(), str2.Length()) == 0;
+        }
+        return false;
     }
 }

@@ -1,11 +1,15 @@
 #ifndef HOOKS_MESSAGEHOOK_H
 #define HOOKS_MESSAGEHOOK_H
 
+#include <cstdlib>
+#include <cstring>
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
 
+#include "VxMathDefines.h"
 #include "XArray.h"
 
 #include "Hooks.h"

@@ -1,6 +1,10 @@
 #ifndef HOOKS_HOOKMODULE_H
 #define HOOKS_HOOKMODULE_H
 
+#include <cstdlib>
+#include <cstring>
+
+#include "VxMathDefines.h"
 #include "XString.h"
 #include "XNHashTable.h"
 

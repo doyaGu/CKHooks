@@ -1,6 +1,10 @@
 #ifndef HOOKS_PLUGINLOADER_H
 #define HOOKS_PLUGINLOADER_H
 
+#include <cstdlib>
+#include <cstring>
+
+#include "VxMathDefines.h"
 #include "XString.h"
 #include "XArray.h"
 #include "XNHashTable.h"

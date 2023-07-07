@@ -231,7 +231,7 @@ bool HookLoader::LoadJson(const char *path) {
             info.filename = hookFilename->valuestring;
         }
 
-        if (info.filename.RFind('.') == XString::NOTFOUND || !info.filename.IEndsWith(".dll"))
+        if (info.filename.RFind('.') == XString::NOTFOUND || !utils::StringIEndsWith(info.filename, ".dll"))
             info.filename << ".dll";
 
         if (!utils::IsFileExist(info.filename)) {

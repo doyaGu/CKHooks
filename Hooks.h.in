@@ -1,10 +1,10 @@
 #ifndef HOOKS_H
 #define HOOKS_H
 
-#define HOOKS_MAJOR_VER 0
-#define HOOKS_MINOR_VER 2
-#define HOOKS_PATCH_VER 0
-#define HOOKS_VERSION "0.2.0"
+#define HOOKS_MAJOR_VER @CMAKE_PROJECT_VERSION_MAJOR@
+#define HOOKS_MINOR_VER @CMAKE_PROJECT_VERSION_MINOR@
+#define HOOKS_PATCH_VER @CMAKE_PROJECT_VERSION_PATCH@
+#define HOOKS_VERSION "@CMAKE_PROJECT_VERSION@"
 
 #if (defined(_MSC_VER) || defined(__MINGW32__))
 #define HOOKS_EXPORT extern "C" __declspec(dllexport)

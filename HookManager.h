@@ -1,6 +1,9 @@
 #ifndef HOOKS_HOOKMANAGER_H
 #define HOOKS_HOOKMANAGER_H
 
+#include <cstdlib>
+#include <cstring>
+
 #include "CKBaseManager.h"
 #include "CKContext.h"
 

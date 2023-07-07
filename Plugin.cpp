@@ -2,26 +2,15 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
-#include <errhandlingapi.h>
 
 #include "HookLoader.h"
 #include "HookManager.h"
 #include "MessageHook.h"
 #include "Utils.h"
 
-#include "MinHook.h"
+#include <MinHook.h>
 
-LONG CALLBACK UnhandledExceptionCallback(LPEXCEPTION_POINTERS exception) {
-    utils::OutputDebugA("Error Code %x/n", exception->ExceptionRecord->ExceptionCode);
-    utils::OutputDebugA("Error address %x/n", exception->ExceptionRecord->ExceptionAddress);
-
-    HookLoader &loader = HookLoader::GetInstance();
-    loader.IterateHooks([](HookModule *hook, void *arg) {
-        return hook->Error(HMEC_SYSTEM, nullptr, arg);
-    }, exception);
-
-    return EXCEPTION_EXECUTE_HANDLER;
-}
+extern HookApi g_HookApi;
 
 void RegisterHookCallbacks(HookModule *hook, int functions) {
     assert(hook != nullptr);
@@ -216,8 +205,6 @@ bool InitHookLoader() {
             return false;
     }
 
-    ::SetUnhandledExceptionFilter(UnhandledExceptionCallback);
-
     const int count = loader.GetHookCount();
     for (int i = 0; i < count; ++i) {
         HookModule *hook = loader.GetHookByIndex(i);
@@ -338,6 +325,15 @@ PLUGIN_EXPORT void RegisterBehaviorDeclarations(XObjectDeclarationArray *reg);
 void RegisterBehaviorDeclarations(XObjectDeclarationArray *reg) {
     HookLoader &loader = HookLoader::GetInstance();
     if (InitHookLoader()) {
+        loader.IterateHooks([](HookModule *hook, void *arg) -> int {
+            hook->AddCallback(HMCI_ONPRELOAD, [](HookModule *hook, void *arg) {
+                HookApiIndex apiIndex = HAI_HOOK;
+                hook->Post(HMPC_API, &apiIndex, reinterpret_cast<void *>(&g_HookApi));
+                return 0;
+            }, nullptr);
+            return HMR_OK;
+        }, nullptr);
+
         loader.LoadHooks();
     }
 
