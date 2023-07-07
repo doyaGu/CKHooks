@@ -9,8 +9,6 @@
 
 #include "CKAll.h"
 
-int g_ModuleCode = 2000;
-int g_ModuleVersion = 1;
 CKContext *g_CKContext = nullptr;
 FILE *g_File = nullptr;
 
@@ -41,10 +39,10 @@ static int OnQuery(HookModuleQueryCode code, void *data1, void *data2) {
             *reinterpret_cast<int *>(data2) = HOOKS_ABI_VERSION;
             break;
         case HMQC_CODE:
-            *reinterpret_cast<int *>(data2) = g_ModuleCode;
+            *reinterpret_cast<int *>(data2) = 2000;
             break;
         case HMQC_VERSION:
-            *reinterpret_cast<int *>(data2) = g_ModuleVersion;
+            *reinterpret_cast<int *>(data2) = 1;
             break;
         case HMQC_CK2:
             *reinterpret_cast<int *>(data2) =
