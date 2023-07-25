@@ -5,6 +5,7 @@
 
 #include "HookLoader.h"
 #include "HookManager.h"
+#include "Logger.h"
 #include "Utils.h"
 
 #include <MinHook.h>
@@ -119,6 +120,14 @@ bool InitHookLoader() {
         assert(hModule != nullptr);
         char buffer[MAX_PATH] = {0};
         ::GetModuleFileNameA(hModule, buffer, sizeof(buffer) / sizeof(char) - 1);
+
+        XString logName = utils::RemoveExtension(buffer, "*") + ".log";
+#ifdef NDEBUG
+        Logger::Get().Init(logName.CStr());
+#else
+        Logger::Get().Init(logName.CStr(), LOG_LEVEL_TRACE);
+#endif
+
         XString jsonName = utils::RemoveExtension(buffer, "*") + ".json";
         if (!loader.Init(jsonName.CStr()))
             return false;
@@ -266,15 +275,22 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpReserved) {
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
             HookLoader::GetInstance().SetData(hModule, 0x100);
-            if (MH_Initialize() != MH_OK)
+            if (MH_Initialize() != MH_OK) {
+                utils::OutputDebugA("Fatal: Unable to initialize MinHook.\n");
                 return FALSE;
-            if (!HookCreateCKBehaviorPrototypeRuntime())
+            }
+            if (!HookCreateCKBehaviorPrototypeRuntime()) {
+                utils::OutputDebugA("Fatal: Unable to hook CreateCKBehaviorPrototypeRuntime.n");
+                return FALSE;
+            }
                 return FALSE;
             break;
         case DLL_PROCESS_DETACH:
             HookLoader::GetInstance().SetData(nullptr, 0x100);
-            if (MH_Uninitialize() != MH_OK)
+            if (MH_Uninitialize() != MH_OK) {
+                utils::OutputDebugA("Fatal: Unable to uninitialize MinHook.\n");
                 return FALSE;
+            }
             break;
         default:
             break;

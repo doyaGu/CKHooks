@@ -57,11 +57,13 @@ set(HOOKS_SOURCES
         HookLoader.cpp
         HookModule.cpp
         HookApi.cpp
+        Logger.cpp
         Utils.cpp
 
         HookManager.h
         HookLoader.h
         HookModule.h
+        Logger.h
         Utils.h
         Hooks.h
 

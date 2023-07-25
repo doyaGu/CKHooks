@@ -5,7 +5,7 @@
 #endif
 #include <Windows.h>
 
-#include "Utils.h"
+#include "Logger.h"
 
 HookModule::~HookModule() {
     Fini();
@@ -64,19 +64,19 @@ bool HookModule::Load() {
     if (!IsInitialized()) return false;
 
     if (IsLoaded()) {
-        utils::OutputDebugA("%s: Hook \"%s\" is already loaded.", __FUNCTION__, m_Info.name.CStr());
+        LOG_ERROR("Hook \"%s\" is already loaded.", m_Info.name.CStr());
         return true;
     }
 
-    m_Instance = reinterpret_cast<INSTANCE_HANDLE *>(::LoadLibraryEx(m_Info.filename.CStr(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH));
+    m_Instance = reinterpret_cast<INSTANCE_HANDLE *>(::LoadLibraryEx(m_Info.filename.CStr(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH));
     if (!m_Instance) {
-        utils::OutputDebugA("%s: Failed to load Hook \"%s\".", __FUNCTION__, m_Info.name.CStr());
+        LOG_ERROR("Unable to load hook \"%s\".", m_Info.name.CStr());
         return false;
     }
 
     m_Handler = reinterpret_cast<HookHandlerFunction>(::GetProcAddress((HMODULE) m_Instance, m_Info.handlerName.CStr()));
     if (!m_Handler) {
-        utils::OutputDebugA("%s: Hook \"%s\" does not export handler function \"%s\".", __FUNCTION__, m_Info.name.CStr(), m_Info.handlerName.CStr());
+        LOG_ERROR("Hook \"%s\" does not export handler function \"%s\".", m_Info.name.CStr(), m_Info.handlerName.CStr());
         return false;
     }
 
@@ -84,7 +84,7 @@ bool HookModule::Load() {
         return false;
 
     if (Handle(HMA_LOAD, GetInfo().code, 0, reinterpret_cast<uintptr_t>(this)) != HMR_OK) {
-        utils::OutputDebugA("%s: Hook \"%s\" handler can not execute loading successfully.", __FUNCTION__, m_Info.name.CStr());
+        LOG_ERROR("Hook \"%s\" handler can not process loading successfully.", m_Info.name.CStr());
         return false;
     }
 
@@ -103,7 +103,7 @@ bool HookModule::Unload() {
         return false;
 
     if (Handle(HMA_UNLOAD, GetInfo().code, 0, reinterpret_cast<uintptr_t>(this)) != HMR_OK) {
-        utils::OutputDebugA("%s: Hook \"%s\" handler can not execute unloading successfully.", __FUNCTION__, m_Info.name.CStr());
+        LOG_ERROR("Hook \"%s\" handler can not process unloading successfully.", m_Info.name.CStr());
         return false;
     }
 
