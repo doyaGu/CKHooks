@@ -5,6 +5,7 @@
 
 #include "HookLoader.h"
 #include "HookManager.h"
+#include "FileHook.h"
 #include "Logger.h"
 #include "Utils.h"
 
@@ -283,10 +284,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpReserved) {
                 utils::OutputDebugA("Fatal: Unable to hook CreateCKBehaviorPrototypeRuntime.n");
                 return FALSE;
             }
+            if (!CP_HOOK_CLASS_NAME(CKFile)::InitHooks(&g_HookApi)) {
+                utils::OutputDebugA("Fatal: Unable to hook CKFile.\n");
                 return FALSE;
+            }
             break;
         case DLL_PROCESS_DETACH:
             HookLoader::GetInstance().SetData(nullptr, 0x100);
+            CP_HOOK_CLASS_NAME(CKFile)::ShutdownHooks(&g_HookApi);
             if (MH_Uninitialize() != MH_OK) {
                 utils::OutputDebugA("Fatal: Unable to uninitialize MinHook.\n");
                 return FALSE;

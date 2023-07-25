@@ -56,6 +56,7 @@ set(HOOKS_SOURCES
         HookManager.cpp
         HookLoader.cpp
         HookModule.cpp
+        FileHook.cpp
         HookApi.cpp
         Logger.cpp
         Utils.cpp
@@ -63,8 +64,10 @@ set(HOOKS_SOURCES
         HookManager.h
         HookLoader.h
         HookModule.h
+        FileHook.h
         Logger.h
         Utils.h
+        Macros.h
         Hooks.h
 
         Plugin.rc

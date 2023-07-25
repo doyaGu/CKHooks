@@ -8,6 +8,7 @@
 #endif
 #include <windows.h>
 #include <strsafe.h>
+#include <Psapi.h>
 
 #include "XArray.h"
 
@@ -174,5 +175,34 @@ namespace utils {
             return strnicmp(str, str2.CStr(), str2.Length()) == 0;
         }
         return false;
+    }
+
+
+    void *GetSelfModuleHandle() {
+        MEMORY_BASIC_INFORMATION mbi;
+        return ((::VirtualQuery((LPVOID) &GetSelfModuleHandle, &mbi, sizeof(mbi)) != 0)
+                ? (HMODULE) mbi.AllocationBase : nullptr);
+    }
+
+    void *GetModuleBaseAddress(const char *modulePath) {
+        if (!modulePath)
+            return nullptr;
+
+        int size = ::MultiByteToWideChar(CP_UTF8, 0, modulePath, -1, nullptr, 0);
+        if (size == 0)
+            return nullptr;
+
+        auto ws = new wchar_t[size];
+        ::MultiByteToWideChar(CP_UTF8, 0, modulePath, -1, ws, size);
+
+        HMODULE hModule = ::GetModuleHandleW(ws);
+        delete[] ws;
+        if (!hModule)
+            return nullptr;
+
+        MODULEINFO moduleInfo;
+        ::GetModuleInformation(::GetCurrentProcess(), hModule, &moduleInfo, sizeof(moduleInfo));
+
+        return moduleInfo.lpBaseOfDll;
     }
 }

@@ -1,6 +1,7 @@
 #ifndef HOOKS_UTILS_H
 #define HOOKS_UTILS_H
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 
@@ -44,6 +45,16 @@ namespace utils {
 
     bool StringEndsWith(const XString &str1, const XString &str2);
     bool StringIEndsWith(const XString &str1, const XString &str2);
+
+    template <typename T>
+    T ForceReinterpretCast(void *base, size_t offset) {
+        void *p = reinterpret_cast<char *>(base) + offset;
+        return *reinterpret_cast<T *>(&p);
+    }
+
+    void *GetSelfModuleHandle();
+
+    void *GetModuleBaseAddress(const char *modulePath);
 }
 
 #endif // HOOKS_UTILS_H
