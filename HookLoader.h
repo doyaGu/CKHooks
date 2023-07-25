@@ -51,7 +51,7 @@ public:
 private:
     HookLoader();
 
-    bool LoadJson(const char *path);
+    bool LoadJson(char *data, size_t len);
 
     HookModule *CreateHook(const HookModuleInfo &info);
     void DestroyHook(HookModule *hook);
@@ -60,6 +60,7 @@ private:
 
     int m_Flag = HLF_UNINITIALIZED;
     XArray<HookModule *> m_Hooks;
+    XArray<XString> m_Paths;
     XNHashTable<HookModule *, XString> m_HookMap;
     XNHashTable<size_t, int> m_Data;
 };

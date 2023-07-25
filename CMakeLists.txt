@@ -70,6 +70,6 @@ set(HOOKS_SOURCES
 
 add_library(Hooks SHARED ${HOOKS_SOURCES})
 target_include_directories(Hooks PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Hooks PRIVATE CK2 VxMath minhook cjson)
+target_link_libraries(Hooks PRIVATE CK2 VxMath minhook yyjson)
 
 add_subdirectory(test)

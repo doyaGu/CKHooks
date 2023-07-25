@@ -2,8 +2,9 @@
 
 #include <cassert>
 #include <cstdio>
+#include <memory>
 
-#include <cJSON.h>
+#include <yyjson.h>
 
 #include "Utils.h"
 
@@ -21,10 +22,43 @@ bool HookLoader::Init(const char *filename) {
     if (IsInitialized())
         return false;
 
+    if (!filename || strlen(filename) == 0) {
+        utils::OutputDebugA("%s: No path is given.", __FUNCTION__);
+        return false;
+    }
+
     utils::OutputDebugA("%s: Current Directory: %s", __FUNCTION__, utils::GetCurrentDir().CStr());
 
-    if (!LoadJson(filename))
+    char *buf;
+    size_t len;
+    {
+        FILE *fp = fopen(filename, "rb");
+        if (!fp) {
+            utils::OutputDebugA("%s: Failed to open %s", __FUNCTION__, filename);
+            return false;
+        }
+
+        fseek(fp, 0, SEEK_END);
+        len = ftell(fp);
+        rewind(fp);
+
+        buf = new char[len + 1];
+        if (fread(buf, sizeof(char), len, fp) != len) {
+            utils::OutputDebugA("%s: Failed to read content from %s", __FUNCTION__, filename);
+            fclose(fp);
+            delete[] buf;
+            return false;
+        }
+        buf[len] = '\0';
+
+        fclose(fp);
+    }
+
+    if (!LoadJson(buf, len)) {
+        delete[] buf;
         return false;
+    }
+    delete[] buf;
 
     if (GetHookCount() == 0) {
         utils::OutputDebugA("%s: No Hooks", __FUNCTION__);
@@ -126,167 +160,182 @@ void *HookLoader::GetData(int id) const {
 
 HookLoader::HookLoader() = default;
 
-bool HookLoader::LoadJson(const char *path) {
-    if (!path || strlen(path) == 0) {
-        utils::OutputDebugA("%s: No path is given.", __FUNCTION__, path);
+bool HookLoader::LoadJson(char *data, size_t len) {
+    if (!data || len == 0)
+        return false;
+
+    yyjson_read_flag flg = YYJSON_READ_ALLOW_TRAILING_COMMAS | YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_INF_AND_NAN;
+    yyjson_read_err err;
+    auto doc = std::shared_ptr<yyjson_doc>(yyjson_read_opts(data, len, flg, nullptr, &err),
+                                           [](yyjson_doc *doc) { yyjson_doc_free(doc); });
+    if (!doc) {
+        utils::OutputDebugA("%s: Parse Error: %s", __FUNCTION__, err.msg);
         return false;
     }
 
-    char *buf = nullptr;
-    {
-        FILE *fp = fopen(path, "rb");
-        if (!fp) {
-            utils::OutputDebugA("%s: Failed to open %s", __FUNCTION__, path);
-            return false;
-        }
-
-        fseek(fp, 0, SEEK_END);
-        size_t size = ftell(fp);
-        rewind(fp);
-
-        buf = new char[size + 1];
-        if (fread(buf, sizeof(char), size, fp) != size) {
-            utils::OutputDebugA("%s: Failed to read content from %s", __FUNCTION__, path);
-            fclose(fp);
-            delete[] buf;
-            return false;
-        }
-        buf[size] = '\0';
-
-        fclose(fp);
-    }
-
-    cJSON *root = cJSON_Parse(buf);
+    yyjson_val *root = yyjson_doc_get_root(doc.get());
     if (!root) {
-        utils::OutputDebugA("%s: Parse Error, Invalid json format.", __FUNCTION__);
-        delete[] buf;
+        utils::OutputDebugA("Unreachable error: yyjson_doc_get_root() return null.");
         return false;
     }
 
-    cJSON *hooks = cJSON_GetObjectItem(root, "hooks");
+    yyjson_val *paths = yyjson_obj_get(root, "paths");
+    if (paths) {
+        if (yyjson_is_arr(paths)) {
+            yyjson_val *val;
+            yyjson_arr_iter iter = yyjson_arr_iter_with(paths);
+            while ((val = yyjson_arr_iter_next(&iter))) {
+                if (yyjson_is_str(val)) {
+                    XString path = yyjson_get_str(val);
+
+                    if (!utils::IsDirectoryExist(path))
+                        continue;
+
+                    path = utils::GetAbsolutePath(path);
+                    if (!m_Paths.IsHere(path))
+                        m_Paths.PushBack(path);
+                }
+            }
+        } else {
+            utils::OutputDebugA("%s: \"paths\" is not an array.", __FUNCTION__);
+        }
+    }
+
+    yyjson_val *hooks = yyjson_obj_get(root, "hooks");
     if (!hooks) {
         utils::OutputDebugA("%s: \"hooks\" is not found.", __FUNCTION__);
-        cJSON_Delete(root);
-        delete[] buf;
         return false;
     }
 
-    if (!cJSON_IsArray(hooks)) {
+    if (!yyjson_is_arr(hooks)) {
         utils::OutputDebugA("%s: Unknown format, \"hooks\" should be an array.", __FUNCTION__);
-        cJSON_Delete(root);
-        delete[] buf;
         return false;
     }
 
-    int hookCount = cJSON_GetArraySize(hooks);
-    if (hookCount == 0) {
+    if (yyjson_arr_size(hooks) == 0) {
         utils::OutputDebugA("%s: No hook found.", __FUNCTION__);
-        cJSON_Delete(root);
-        delete[] buf;
         return false;
     }
 
-    for (int i = 0; i < hookCount; i++) {
-        cJSON *hook = cJSON_GetArrayItem(hooks, i);
-        if (!hook) continue;
-
-        if (!cJSON_IsObject(hook)) {
-            utils::OutputDebugA("%s: Unknown format, \"%s\" should be an object.", __FUNCTION__, hook->string);
+    yyjson_val *hook;
+    yyjson_arr_iter iter = yyjson_arr_iter_with(hooks);
+    while ((hook = yyjson_arr_iter_next(&iter))) {
+        if (!yyjson_is_obj(hook)) {
+            utils::OutputDebugA("%s: Unknown format, hook entry should be an object.", __FUNCTION__);
             continue;
         }
 
         HookModuleInfo info;
 
         {
-            cJSON *hookName = cJSON_GetObjectItem(hook, "name");
+            yyjson_val *hookName = yyjson_obj_get(hook, "name");
             if (!hookName) {
                 utils::OutputDebugA("%s: Hook Name is required.", __FUNCTION__);
                 continue;
             }
-            if (!cJSON_IsString(hookName)) {
+
+            if (!yyjson_is_str(hookName)) {
                 utils::OutputDebugA("%s: Unknown format, Hook Name should be a string.", __FUNCTION__);
                 continue;
             }
-            if (strlen(hookName->valuestring) == 0) {
+
+            const char *str = yyjson_get_str(hookName);
+            if (str[0] == '\0') {
                 utils::OutputDebugA("%s: Hook Name can not be empty.", __FUNCTION__);
                 continue;
             }
-            info.name = hookName->valuestring;
+            info.name = str;
         }
 
         {
-            cJSON *hookFilename = cJSON_GetObjectItem(hook, "filename");
+            yyjson_val *hookFilename = yyjson_obj_get(hook, "filename");
             if (!hookFilename) {
                 utils::OutputDebugA("%s: Hook Filename is required.", __FUNCTION__);
                 continue;
             }
-            if (!cJSON_IsString(hookFilename)) {
+
+            if (!yyjson_is_str(hookFilename)) {
                 utils::OutputDebugA("%s: Unknown format, Hook Filename should be a string.", __FUNCTION__);
                 continue;
             }
-            if (strlen(hookFilename->valuestring) == 0) {
+
+            const char *str = yyjson_get_str(hookFilename);
+            if (str[0] == '\0') {
                 utils::OutputDebugA("%s: Hook Filename can not be empty.", __FUNCTION__);
                 continue;
             }
-            info.filename = hookFilename->valuestring;
+            info.filename = str;
         }
 
         if (info.filename.RFind('.') == XString::NOTFOUND || !utils::StringIEndsWith(info.filename, ".dll"))
             info.filename << ".dll";
 
         if (!utils::IsFileExist(info.filename)) {
-            utils::OutputDebugA("%s: \"%s\" is not found, non-existing hook will be ignored.", __FUNCTION__, info.filename.CStr());
-            continue;
+            bool resolved = false;
+            for (auto it = m_Paths.Begin(); it != m_Paths.End(); ++it) {
+                XString &path = *it;
+                XString filename = utils::JoinPaths(path, info.filename);
+                if (utils::IsFileExist(filename)) {
+                    info.filename = filename;
+                    resolved = true;
+                }
+            }
+
+            if (!resolved) {
+                utils::OutputDebugA("%s: \"%s\" is not found, non-existing hook will be ignored.", __FUNCTION__, info.filename.CStr());
+                continue;
+            }
         }
 
         {
-            cJSON *hookHandlerName = cJSON_GetObjectItem(hook, "handler");
+            yyjson_val *hookHandlerName = yyjson_obj_get(hook, "handler");
             if (!hookHandlerName) {
                 utils::OutputDebugA("%s: Hook Handler Name is required.", __FUNCTION__);
                 continue;
             }
-            if (!cJSON_IsString(hookHandlerName)) {
+
+            if (!yyjson_is_str(hookHandlerName)) {
                 utils::OutputDebugA("%s: Unknown format, Hook Handler Name should be a string.", __FUNCTION__);
                 continue;
             }
-            if (strlen(hookHandlerName->valuestring) == 0) {
+
+            const char *str = yyjson_get_str(hookHandlerName);
+            if (str[0] == '\0') {
                 utils::OutputDebugA("%s: Hook Handler Name can not be empty.", __FUNCTION__);
                 continue;
             }
-            info.handlerName = hookHandlerName->valuestring;
+            info.handlerName = str;
         }
 
         {
-            cJSON *hookCode = cJSON_GetObjectItem(hook, "code");
+            yyjson_val *hookCode = yyjson_obj_get(hook, "code");
             if (!hookCode) {
                 utils::OutputDebugA("%s: Hook Code is required.", __FUNCTION__);
                 continue;
             }
-            if (!cJSON_IsNumber(hookCode)) {
+            if (!yyjson_is_num(hookCode)) {
                 utils::OutputDebugA("%s: Unknown format, Hook Code should be a number.", __FUNCTION__);
                 continue;
             }
-            info.code = hookCode->valueint;
+            info.code = static_cast<uint32_t>(yyjson_get_uint(hookCode));
         }
 
         {
-            cJSON *hookVersion = cJSON_GetObjectItem(hook, "version");
+            yyjson_val *hookVersion = yyjson_obj_get(hook, "version");
             if (!hookVersion) {
                 utils::OutputDebugA("%s: Hook Version is required.", __FUNCTION__);
                 continue;
             }
-            if (!cJSON_IsNumber(hookVersion)) {
+            if (!yyjson_is_num(hookVersion)) {
                 utils::OutputDebugA("%s: Unknown format, Hook Version should be a number.", __FUNCTION__);
                 continue;
             }
-            info.version = hookVersion->valueint;
+            info.version = static_cast<uint32_t>(yyjson_get_uint(hookVersion));
         }
 
         CreateHook(info);
     }
 
-    cJSON_Delete(root);
-    delete[] buf;
     return true;
 }
 
