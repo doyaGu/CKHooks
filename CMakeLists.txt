@@ -57,13 +57,11 @@ set(HOOKS_SOURCES
         HookLoader.cpp
         HookModule.cpp
         HookApi.cpp
-        MessageHook.cpp
         Utils.cpp
 
         HookManager.h
         HookLoader.h
         HookModule.h
-        MessageHook.h
         Utils.h
         Hooks.h
 

@@ -54,14 +54,12 @@ typedef enum HookModuleQueryCode {
     HMQC_VERSION = 2,
 
     HMQC_CK2 = 0x20,
-    HMQC_MSGHOOK = 0x21,
 } HookModuleQueryCode;
 
 typedef enum HookModulePostCode {
     HMPC_API = 0x10,
 
     HMPC_CK2 = 0x20,
-    HMPC_MSGHOOK = 0x21,
 
     HMPC_CKCONTEXT = 0x40,
     HMPC_WINDOW = 0x41,
@@ -124,42 +122,6 @@ typedef enum CKHookFunctionIndex {
     CKHFI_OnPostRender = 23,
     CKHFI_OnPostSpriteRender = 24,
 } CKHookFunctionIndex;
-
-typedef enum MessageHookFunctions {
-    MHF_MSGFILTER = 0x00000001,
-    MHF_JOURNALRECORD = 0x00000002,
-    MHF_JOURNALPLAYBACK = 0x00000004,
-    MHF_KEYBOARD = 0x00000008,
-    MHF_GETMESSAGE = 0x00000010,
-    MHF_CALLWNDPROC = 0x00000020,
-    MHF_CBT = 0x00000040,
-    MHF_SYSMSGFILTER = 0x00000080,
-    MHF_MOUSE = 0x00000100,
-    MHF_DEBUG = 0x00000200,
-    MHF_SHELL = 0x00000400,
-    MHF_FOREGROUNDIDLE = 0x00000800,
-    MHF_CALLWNDPROCRET = 0x00001000,
-    MHF_KEYBOARD_LL = 0x00002000,
-    MHF_MOUSE_LL = 0x00004000,
-} MessageHookFunctions;
-
-typedef enum MessageHookFunctionsIndex {
-    MHFI_MSGFILTER = 32,
-    MHFI_JOURNALRECORD = 33,
-    MHFI_JOURNALPLAYBACK = 34,
-    MHFI_KEYBOARD = 35,
-    MHFI_GETMESSAGE = 36,
-    MHFI_CALLWNDPROC = 37,
-    MHFI_CBT = 38,
-    MHFI_SYSMSGFILTER = 39,
-    MHFI_MOUSE = 40,
-    MHFI_DEBUG = 41,
-    MHFI_SHELL = 42,
-    MHFI_FOREGROUNDIDLE = 43,
-    MHFI_CALLWNDPROCRET = 44,
-    MHFI_KEYBOARD_LL = 45,
-    MHFI_MOUSE_LL = 46,
-} MessageHookFunctionsIndex;
 
 typedef enum HookApiIndex {
     HAI_HOOK = 0,

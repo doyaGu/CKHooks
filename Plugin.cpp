@@ -5,7 +5,6 @@
 
 #include "HookLoader.h"
 #include "HookManager.h"
-#include "MessageHook.h"
 #include "Utils.h"
 
 #include <MinHook.h>
@@ -110,86 +109,6 @@ void UnregisterHookCallbacks(HookModule *hook, int functions) {
 #undef HOOK_UNSET_CALLBACK
 }
 
-void RegisterMessageHook(HookModule *hook, int functions) {
-    assert(hook != nullptr);
-
-    if (functions == 0) return;
-
-#define HOOK_SET_MESSAGEHOOK(Type) \
-    do { \
-        void *func = nullptr; \
-        void *arg = nullptr; \
-        if ((functions & MHF_##Type) != 0 && \
-            hook->Set(MHFI_##Type, &func, &arg) == HMR_OK && func != nullptr) { \
-            int index = MHFI_##Type; \
-            MessageHook *mh = new MessageHook; \
-            if (!mh->Install(MHFI_##Type, reinterpret_cast<HOOKPROC>(func))) { \
-                delete mh; \
-                if (hook->Post(HMPC_MSGHOOK, reinterpret_cast<void*>(&index), nullptr) != HMR_OK) \
-                    hook->Disable(); \
-                    return; \
-            } else { \
-                hook->SetData(mh, MHFI_##Type); \
-                HHOOK handle = mh->GetHandle(); \
-                hook->Post(HMPC_MSGHOOK, reinterpret_cast<void*>(&index), reinterpret_cast<void*>(&handle)); \
-            } \
-        } \
-    } while (0)
-
-    HOOK_SET_MESSAGEHOOK(MSGFILTER);
-    HOOK_SET_MESSAGEHOOK(JOURNALRECORD);
-    HOOK_SET_MESSAGEHOOK(JOURNALPLAYBACK);
-    HOOK_SET_MESSAGEHOOK(KEYBOARD);
-    HOOK_SET_MESSAGEHOOK(GETMESSAGE);
-    HOOK_SET_MESSAGEHOOK(CALLWNDPROC);
-    HOOK_SET_MESSAGEHOOK(CBT);
-    HOOK_SET_MESSAGEHOOK(SYSMSGFILTER);
-    HOOK_SET_MESSAGEHOOK(MOUSE);
-    HOOK_SET_MESSAGEHOOK(DEBUG);
-    HOOK_SET_MESSAGEHOOK(SHELL);
-    HOOK_SET_MESSAGEHOOK(FOREGROUNDIDLE);
-    HOOK_SET_MESSAGEHOOK(CALLWNDPROCRET);
-    HOOK_SET_MESSAGEHOOK(KEYBOARD_LL);
-    HOOK_SET_MESSAGEHOOK(MOUSE_LL);
-
-#undef HOOK_SET_MESSAGEHOOK
-}
-
-void UnregisterMessageHook(HookModule *hook, int functions) {
-    assert(hook != nullptr);
-
-    if (functions == 0) return;
-
-#define HOOK_UNSET_MESSAGEHOOK(Index) \
-    do { \
-        void *func = nullptr; \
-        void *arg = nullptr; \
-        if ((functions & MHF_##Index) != 0 && \
-            hook->Unset(MHFI_##Index, &func, &arg) == HMR_OK && func != nullptr) { \
-            MessageHook *mh = reinterpret_cast<MessageHook *>(hook->GetData(MHFI_##Index)); \
-            delete mh; \
-        } \
-    } while (0)
-
-    HOOK_UNSET_MESSAGEHOOK(MSGFILTER);
-    HOOK_UNSET_MESSAGEHOOK(JOURNALRECORD);
-    HOOK_UNSET_MESSAGEHOOK(JOURNALPLAYBACK);
-    HOOK_UNSET_MESSAGEHOOK(KEYBOARD);
-    HOOK_UNSET_MESSAGEHOOK(GETMESSAGE);
-    HOOK_UNSET_MESSAGEHOOK(CALLWNDPROC);
-    HOOK_UNSET_MESSAGEHOOK(CBT);
-    HOOK_UNSET_MESSAGEHOOK(SYSMSGFILTER);
-    HOOK_UNSET_MESSAGEHOOK(MOUSE);
-    HOOK_UNSET_MESSAGEHOOK(DEBUG);
-    HOOK_UNSET_MESSAGEHOOK(SHELL);
-    HOOK_UNSET_MESSAGEHOOK(FOREGROUNDIDLE);
-    HOOK_UNSET_MESSAGEHOOK(CALLWNDPROCRET);
-    HOOK_UNSET_MESSAGEHOOK(KEYBOARD_LL);
-    HOOK_UNSET_MESSAGEHOOK(MOUSE_LL);
-
-#undef HOOK_UNSET_MESSAGEHOOK
-}
-
 bool InitHookLoader() {
     HookLoader &loader = HookLoader::GetInstance();
 
@@ -251,20 +170,10 @@ CKERROR InitInstance(CKContext *context) {
             RegisterHookCallbacks(hook, ckFuncs);
         }
 
-        int mhFuncs;
-        if (hook->Query(HMQC_MSGHOOK, nullptr, reinterpret_cast<void *>(&mhFuncs)) == HMR_OK) {
-            RegisterMessageHook(hook, mhFuncs);
-        }
-
         hook->AddCallback(HMCI_ONPREUNLOAD, [](HookModule *hook, void *arg) {
             int ckFuncs;
             if (hook->Query(HMQC_CK2, nullptr, reinterpret_cast<void *>(&ckFuncs)) == HMR_OK) {
                 UnregisterHookCallbacks(hook, ckFuncs);
-            }
-
-            int mhFuncs;
-            if (hook->Query(HMQC_MSGHOOK, nullptr, reinterpret_cast<void *>(&mhFuncs)) == HMR_OK) {
-                UnregisterMessageHook(hook, mhFuncs);
             }
 
             return 0;
