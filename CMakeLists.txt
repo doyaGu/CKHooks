@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(Hooks VERSION 0.2.0)
+project(Hooks VERSION 0.3.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED NO)
@@ -41,6 +41,9 @@ if (MSVC)
     )
 endif ()
 
+# Generate a CompilationDatabase (compile_commands.json)
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
 find_package(VirtoolsSDK REQUIRED)
 
 add_subdirectory(deps)
@@ -49,6 +52,18 @@ configure_file(Hooks.h.in ${CMAKE_CURRENT_SOURCE_DIR}/Hooks.h)
 configure_file(Version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/Version.h)
 
 set(HOOKS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(HOOKS_HEADERS
+        HookManager.h
+        HookLoader.h
+        HookModule.h
+        WindowHook.h
+        FileHook.h
+        Logger.h
+        CallbackList.h
+        Utils.h
+        Macros.h
+        Hooks.h
+)
 
 set(HOOKS_SOURCES
         Plugin.cpp
@@ -56,24 +71,15 @@ set(HOOKS_SOURCES
         HookManager.cpp
         HookLoader.cpp
         HookModule.cpp
+        WindowHook.cpp
         FileHook.cpp
         HookApi.cpp
         Logger.cpp
         Utils.cpp
-
-        HookManager.h
-        HookLoader.h
-        HookModule.h
-        FileHook.h
-        Logger.h
-        Utils.h
-        Macros.h
-        Hooks.h
-
         Plugin.rc
-        )
+)
 
-add_library(Hooks SHARED ${HOOKS_SOURCES})
+add_library(Hooks SHARED ${HOOKS_SOURCES} ${HOOKS_HEADERS})
 target_include_directories(Hooks PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Hooks PRIVATE CK2 VxMath minhook yyjson)
 

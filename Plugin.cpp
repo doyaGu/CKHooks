@@ -5,6 +5,7 @@
 
 #include "HookLoader.h"
 #include "HookManager.h"
+#include "WindowHook.h"
 #include "FileHook.h"
 #include "Logger.h"
 #include "Utils.h"
@@ -13,7 +14,7 @@
 
 extern HookApi g_HookApi;
 
-void RegisterHookCallbacks(HookModule *hook, int functions) {
+void RegisterCKHookCallbacks(HookModule *hook, int functions) {
     assert(hook != nullptr);
 
     if (functions == 0) return;
@@ -62,7 +63,7 @@ void RegisterHookCallbacks(HookModule *hook, int functions) {
 #undef HOOK_SET_CALLBACK
 }
 
-void UnregisterHookCallbacks(HookModule *hook, int functions) {
+void UnregisterCKHookCallbacks(HookModule *hook, int functions) {
     assert(hook != nullptr);
 
     if (functions == 0) return;
@@ -107,6 +108,52 @@ void UnregisterHookCallbacks(HookModule *hook, int functions) {
     HOOK_UNSET_CALLBACK(OnPreRender, CK_RENDERCALLBACK);
     HOOK_UNSET_CALLBACK(OnPostRender, CK_RENDERCALLBACK);
     HOOK_UNSET_CALLBACK(OnPostSpriteRender, CK_RENDERCALLBACK);
+
+#undef HOOK_UNSET_CALLBACK
+}
+
+void RegisterWindowHookCallbacks(HookModule *hook, int functions) {
+    assert(hook != nullptr);
+
+    if (functions == 0) return;
+
+    auto &wh = WindowHook::GetInstance();
+
+#define HOOK_SET_CALLBACK(Name, Type) \
+    do { \
+        void *func = nullptr; \
+        void *arg = nullptr; \
+        if ((functions & WHF_##Name) != 0 && \
+            hook->Set(WHFI_##Name, &func, &arg) == HMR_OK && func != nullptr) { \
+            wh.Add##Name##CallBack(reinterpret_cast<Type>(func), arg); \
+        } \
+    } while (0)
+
+    HOOK_SET_CALLBACK(OnWndProc, WH_WNDPROCCALLBACK);
+    HOOK_SET_CALLBACK(OnWndProcRet, WH_WNDPROCRETCALLBACK);
+
+#undef HOOK_SET_CALLBACK
+}
+
+void UnregisterWindowHookCallbacks(HookModule *hook, int functions) {
+    assert(hook != nullptr);
+
+    if (functions == 0) return;
+
+    auto &wh = WindowHook::GetInstance();
+
+#define HOOK_UNSET_CALLBACK(Name, Type) \
+    do { \
+        void *func = nullptr; \
+        void *arg = nullptr; \
+        if ((functions & WHF_##Name) != 0 && \
+            hook->Unset(WHFI_##Name, &func, &arg) == HMR_OK && func != nullptr) { \
+            wh.Remove##Name##CallBack(reinterpret_cast<Type>(func), arg); \
+        } \
+    } while (0)
+
+    HOOK_UNSET_CALLBACK(OnWndProc, WH_WNDPROCCALLBACK);
+    HOOK_UNSET_CALLBACK(OnWndProcRet, WH_WNDPROCRETCALLBACK);
 
 #undef HOOK_UNSET_CALLBACK
 }
@@ -168,6 +215,9 @@ CKERROR InitInstance(CKContext *context) {
 
     HookLoader &loader = HookLoader::GetInstance();
     loader.SetData(context, 0x110);
+    loader.SetData(context->GetMainWindow(), 0x120);
+
+    WindowHook::GetInstance().Init(reinterpret_cast<HWND>(context->GetMainWindow()));
 
     loader.IterateHooks([](HookModule *hook, void *arg) -> int {
         auto *context = reinterpret_cast<CKContext *>(arg);
@@ -177,13 +227,23 @@ CKERROR InitInstance(CKContext *context) {
 
         int ckFuncs;
         if (hook->Query(HMQC_CK2, nullptr, reinterpret_cast<void *>(&ckFuncs)) == HMR_OK) {
-            RegisterHookCallbacks(hook, ckFuncs);
+            RegisterCKHookCallbacks(hook, ckFuncs);
+        }
+
+        int winFuncs;
+        if (hook->Query(HMQC_WINDOW, nullptr, reinterpret_cast<void *>(&winFuncs)) == HMR_OK) {
+            RegisterWindowHookCallbacks(hook, winFuncs);
         }
 
         hook->AddCallback(HMCI_ONPREUNLOAD, [](HookModule *hook, void *arg) {
             int ckFuncs;
             if (hook->Query(HMQC_CK2, nullptr, reinterpret_cast<void *>(&ckFuncs)) == HMR_OK) {
-                UnregisterHookCallbacks(hook, ckFuncs);
+                UnregisterCKHookCallbacks(hook, ckFuncs);
+            }
+
+            int winFuncs;
+            if (hook->Query(HMQC_WINDOW, nullptr, reinterpret_cast<void *>(&winFuncs)) == HMR_OK) {
+                UnregisterWindowHookCallbacks(hook, winFuncs);
             }
 
             return 0;

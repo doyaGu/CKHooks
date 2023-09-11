@@ -54,12 +54,11 @@ typedef enum HookModuleQueryCode {
     HMQC_VERSION = 2,
 
     HMQC_CK2 = 0x20,
+    HMQC_WINDOW = 0x30,
 } HookModuleQueryCode;
 
 typedef enum HookModulePostCode {
     HMPC_API = 0x10,
-
-    HMPC_CK2 = 0x20,
 
     HMPC_CKCONTEXT = 0x40,
     HMPC_WINDOW = 0x41,
@@ -123,13 +122,21 @@ typedef enum CKHookFunctionIndex {
     CKHFI_OnPostSpriteRender = 24,
 } CKHookFunctionIndex;
 
+typedef enum WindowHookFunctions {
+    WHF_OnWndProc = 0x00000001,
+    WHF_OnWndProcRet = 0x00000002,
+} WindowHookFunctions;
+
+typedef enum WindowHookFunctionIndex {
+    WHFI_OnWndProc = 32,
+    WHFI_OnWndProcRet = 33,
+} WindowHookFunctionIndex;
+
 typedef enum HookApiIndex {
-    HAI_HOOK = 0,
-    HAI_OS = 1,
+    HAI_HOOK = 0
 } HookApiIndex;
 
 typedef enum HookApiErrorCode {
-    HAEC_UNKNOWN = -1,
     HAEC_OK = 0,
     HAEC_ALREADY_CREATED,
     HAEC_NOT_CREATED,
@@ -140,7 +147,8 @@ typedef enum HookApiErrorCode {
     HAEC_MEMORY_ALLOC,
     HAEC_MEMORY_PROTECT,
     HAEC_MODULE_NOT_FOUND,
-    HAEC_FUNCTION_NOT_FOUND
+    HAEC_FUNCTION_NOT_FOUND,
+    HAEC_UNKNOWN = -1
 } HookApiErrorCode;
 
 typedef struct HookApi {

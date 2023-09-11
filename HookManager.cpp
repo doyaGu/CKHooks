@@ -1,29 +1,5 @@
 #include "HookManager.h"
 
-#define HM_TRIGGER_CALLBACK(Name, Type) \
-    do { \
-        Callback *cb = m_##Name##Callbacks.Begin(); \
-        while (cb != m_##Name##Callbacks.End()) { \
-            ((Type)cb->callback)(cb->argument); \
-            if (cb->temp) \
-                cb = m_##Name##Callbacks.Remove(cb); \
-            else \
-                ++cb; \
-        } \
-    } while (0)
-
-#define HM_TRIGGER_CALLBACK_ARGS(Name, Type, ...) \
-    do { \
-        Callback *cb = m_##Name##Callbacks.Begin(); \
-        while (cb != m_##Name##Callbacks.End()) { \
-            ((Type)cb->callback)(__VA_ARGS__, cb->argument); \
-            if (cb->temp) \
-                cb = m_##Name##Callbacks.Remove(cb); \
-            else \
-                ++cb; \
-        } \
-    } while (0)
-
 HookManager::HookManager(CKContext *context) : CKBaseManager(context, HOOKMANAGER_GUID, "Hook Manager") {
     context->RegisterNewManager(this);
 }
@@ -31,127 +7,127 @@ HookManager::HookManager(CKContext *context) : CKBaseManager(context, HOOKMANAGE
 HookManager::~HookManager() = default;
 
 CKERROR HookManager::PreClearAll() {
-    HM_TRIGGER_CALLBACK(PreClearAll, CK_PROCESSCALLBACK);
+    m_PreClearAllCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PostClearAll() {
-    HM_TRIGGER_CALLBACK(PostClearAll, CK_PROCESSCALLBACK);
+    m_PostClearAllCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PreProcess() {
-    HM_TRIGGER_CALLBACK(PreProcess, CK_PROCESSCALLBACK);
+    m_PreProcessCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PostProcess() {
-    HM_TRIGGER_CALLBACK(PostProcess, CK_PROCESSCALLBACK);
+    m_PostProcessCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::SequenceAddedToScene(CKScene *scn, CK_ID *objids, int count) {
-    HM_TRIGGER_CALLBACK_ARGS(OnSequenceAddedToScene, CK_SCENECALLBACK, scn, objids, count);
+    m_OnSequenceAddedToSceneCallbacks(scn, objids, count);
     return CK_OK;
 }
 
 CKERROR HookManager::SequenceRemovedFromScene(CKScene *scn, CK_ID *objids, int count) {
-    HM_TRIGGER_CALLBACK_ARGS(OnSequenceRemovedFromScene, CK_SCENECALLBACK, scn, objids, count);
+    m_OnSequenceRemovedFromSceneCallbacks(scn, objids, count);
     return CK_OK;
 }
 
 CKERROR HookManager::PreLaunchScene(CKScene *OldScene, CKScene *NewScene) {
-    HM_TRIGGER_CALLBACK_ARGS(PreLaunchScene, CK_LAUNCHSCENECALLBACK, OldScene, NewScene);
+    m_PreLaunchSceneCallbacks(OldScene, NewScene);
     return CK_OK;
 }
 
 CKERROR HookManager::PostLaunchScene(CKScene *OldScene, CKScene *NewScene) {
-    HM_TRIGGER_CALLBACK_ARGS(PostLaunchScene, CK_LAUNCHSCENECALLBACK, OldScene, NewScene);
+    m_PostLaunchSceneCallbacks(OldScene, NewScene);
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKInit() {
-    HM_TRIGGER_CALLBACK(OnCKInit, CK_PROCESSCALLBACK);
+    m_OnCKInitCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKEnd() {
-    HM_TRIGGER_CALLBACK(OnCKEnd, CK_PROCESSCALLBACK);
+    m_OnCKEndCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKReset() {
-    HM_TRIGGER_CALLBACK(OnCKReset, CK_PROCESSCALLBACK);
+    m_OnCKResetCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKPostReset() {
-    HM_TRIGGER_CALLBACK(OnCKPostReset, CK_PROCESSCALLBACK);
+    m_OnCKPostResetCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKPause() {
-    HM_TRIGGER_CALLBACK(OnCKPause, CK_PROCESSCALLBACK);
+    m_OnCKPauseCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnCKPlay() {
-    HM_TRIGGER_CALLBACK(OnCKPlay, CK_PROCESSCALLBACK);
+    m_OnCKPlayCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::SequenceToBeDeleted(CK_ID *objids, int count) {
-    HM_TRIGGER_CALLBACK_ARGS(OnSequenceToBeDeleted, CK_DELETECALLBACK, objids, count);
+    m_OnSequenceToBeDeletedCallbacks(objids, count);
     return CK_OK;
 }
 
 CKERROR HookManager::SequenceDeleted(CK_ID *objids, int count) {
-    HM_TRIGGER_CALLBACK_ARGS(OnSequenceDeleted, CK_DELETECALLBACK, objids, count);
+    m_OnSequenceDeletedCallbacks(objids, count);
     return CK_OK;
 }
 
 CKERROR HookManager::PreLoad() {
-    HM_TRIGGER_CALLBACK(PreLoad, CK_PROCESSCALLBACK);
+    m_PreLoadCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PostLoad() {
-    HM_TRIGGER_CALLBACK(PostLoad, CK_PROCESSCALLBACK);
+    m_PostLoadCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PreSave() {
-    HM_TRIGGER_CALLBACK(PreSave, CK_PROCESSCALLBACK);
+    m_PreSaveCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::PostSave() {
-    HM_TRIGGER_CALLBACK(PostSave, CK_PROCESSCALLBACK);
+    m_PostSaveCallbacks();
     return CK_OK;
 }
 
 CKERROR HookManager::OnPreCopy(CKDependenciesContext &context) {
-    HM_TRIGGER_CALLBACK_ARGS(OnPreCopy, CK_COPYCALLBACK, &context);
+    m_OnPreCopyCallbacks(&context);
     return CK_OK;
 }
 
 CKERROR HookManager::OnPostCopy(CKDependenciesContext &context) {
-    HM_TRIGGER_CALLBACK_ARGS(OnPostCopy, CK_COPYCALLBACK, &context);
+    m_OnPostCopyCallbacks(&context);
     return CK_OK;
 }
 
 CKERROR HookManager::OnPreRender(CKRenderContext *dev) {
-    HM_TRIGGER_CALLBACK_ARGS(OnPreRender, CK_RENDERCALLBACK, dev);
+    m_OnPreRenderCallbacks(dev);
     return CK_OK;
 }
 
 CKERROR HookManager::OnPostRender(CKRenderContext *dev) {
-    HM_TRIGGER_CALLBACK_ARGS(OnPostRender, CK_RENDERCALLBACK, dev);
+    m_OnPostRenderCallbacks(dev);
     return CK_OK;
 }
 
 CKERROR HookManager::OnPostSpriteRender(CKRenderContext *dev) {
-    HM_TRIGGER_CALLBACK_ARGS(OnPostSpriteRender, CK_RENDERCALLBACK, dev);
+    m_OnPostSpriteRenderCallbacks(dev);
     return CK_OK;
 }
 
@@ -183,277 +159,202 @@ CKDWORD HookManager::GetValidFunctionsMask() {
            CKMANAGER_FUNC_OnPostSpriteRender;
 }
 
-#undef HM_TRIGGER_CALLBACK
-#undef HM_TRIGGER_CALLBACK_ARGS
-
-#define HM_ADD_CALLBACK(Name, Func, Arg, Temp) \
-    do { \
-        Callback cb = {(void *)Func, Arg, Temp}; \
-        Callback *prev = m_##Name##Callbacks.Find(cb); \
-        if (prev == m_##Name##Callbacks.End()) { \
-            m_##Name##Callbacks.PushBack(cb); \
-        } else { \
-            m_##Name##Callbacks.Move(prev, m_##Name##Callbacks.End()); \
-        } \
-    } while (0)
-
-
-#define HM_REMOVE_CALLBACK(Name, Func, Arg) \
-    do { \
-        Callback cb = {(void *)Func, Arg, FALSE}; \
-        m_##Name##Callbacks.Remove(cb); \
-    } while (0)
-
-void HookManager::AddPreClearAllCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PreClearAll, func, arg, temp);
+void HookManager::AddPreClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PreClearAllCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePreClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PreClearAll, func, arg);
+    m_PreClearAllCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPostClearAllCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PostClearAll, func, arg, temp);
+void HookManager::AddPostClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PostClearAllCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePostClearAllCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PostClearAll, func, arg);
+    m_PostClearAllCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPreProcessCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PreProcess, func, arg, temp);
+void HookManager::AddPreProcessCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PreProcessCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePreProcessCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PreProcess, func, arg);
+    m_PreProcessCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPostProcessCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PostProcess, func, arg, temp);
+void HookManager::AddPostProcessCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PostProcessCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePostProcessCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PostProcess, func, arg);
+    m_PostProcessCallbacks.Remove(func, arg);
 }
 
-
-void HookManager::AddOnSequenceAddedToSceneCallBack(CK_SCENECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnSequenceAddedToScene, func, arg, temp);
+void HookManager::AddOnSequenceAddedToSceneCallBack(CK_SCENECALLBACK func, void *arg) {
+    m_OnSequenceAddedToSceneCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnSequenceAddedToSceneCallBack(CK_SCENECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnSequenceAddedToScene, func, arg);
+    m_OnSequenceAddedToSceneCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnSequenceRemovedFromSceneCallBack(CK_SCENECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnSequenceRemovedFromScene, func, arg, temp);
+void HookManager::AddOnSequenceRemovedFromSceneCallBack(CK_SCENECALLBACK func, void *arg) {
+    m_OnSequenceRemovedFromSceneCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnSequenceRemovedFromSceneCallBack(CK_SCENECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnSequenceRemovedFromScene, func, arg);
+    m_OnSequenceRemovedFromSceneCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPreLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PreLaunchScene, func, arg, temp);
+void HookManager::AddPreLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg) {
+    m_PreLaunchSceneCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePreLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PreLaunchScene, func, arg);
+    m_PreLaunchSceneCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPostLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PostLaunchScene, func, arg, temp);
+void HookManager::AddPostLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg) {
+    m_PostLaunchSceneCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePostLaunchSceneCallBack(CK_LAUNCHSCENECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PostLaunchScene, func, arg);
+    m_PostLaunchSceneCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKInitCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKInit, func, arg, temp);
+void HookManager::AddOnCKInitCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKInitCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKInitCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKInit, func, arg);
+    m_OnCKInitCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKEndCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKEnd, func, arg, temp);
+void HookManager::AddOnCKEndCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKEndCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKEndCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKEnd, func, arg);
+    m_OnCKEndCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKResetCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKReset, func, arg, temp);
+void HookManager::AddOnCKResetCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKResetCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKResetCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKReset, func, arg);
+    m_OnCKResetCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKPostResetCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKPostReset, func, arg, temp);
+void HookManager::AddOnCKPostResetCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKPostResetCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKPostResetCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKPostReset, func, arg);
+    m_OnCKPostResetCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKPauseCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKPause, func, arg, temp);
+void HookManager::AddOnCKPauseCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKPauseCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKPauseCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKPause, func, arg);
+    m_OnCKPauseCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnCKPlayCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnCKPlay, func, arg, temp);
+void HookManager::AddOnCKPlayCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_OnCKPlayCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnCKPlayCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnCKPlay, func, arg);
+    m_OnCKPlayCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnSequenceToBeDeletedCallBack(CK_DELETECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnSequenceToBeDeleted, func, arg, temp);
+void HookManager::AddOnSequenceToBeDeletedCallBack(CK_DELETECALLBACK func, void *arg) {
+    m_OnSequenceToBeDeletedCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnSequenceToBeDeletedCallBack(CK_DELETECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnSequenceToBeDeleted, func, arg);
+    m_OnSequenceToBeDeletedCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnSequenceDeletedCallBack(CK_DELETECALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnSequenceDeleted, func, arg, temp);
+void HookManager::AddOnSequenceDeletedCallBack(CK_DELETECALLBACK func, void *arg) {
+    m_OnSequenceDeletedCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnSequenceDeletedCallBack(CK_DELETECALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnSequenceDeleted, func, arg);
+    m_OnSequenceDeletedCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPreLoadCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PreLoad, func, arg, temp);
+void HookManager::AddPreLoadCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PreLoadCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePreLoadCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PreLoad, func, arg);
+    m_PreLoadCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPostLoadCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PostLoad, func, arg, temp);
+void HookManager::AddPostLoadCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PostLoadCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePostLoadCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PostLoad, func, arg);
+    m_PostLoadCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPreSaveCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PreSave, func, arg, temp);
+void HookManager::AddPreSaveCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PreSaveCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePreSaveCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PreSave, func, arg);
+    m_PreSaveCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddPostSaveCallBack(CK_PROCESSCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(PostSave, func, arg, temp);
+void HookManager::AddPostSaveCallBack(CK_PROCESSCALLBACK func, void *arg) {
+    m_PostSaveCallbacks.Append(func, arg);
 }
 
 void HookManager::RemovePostSaveCallBack(CK_PROCESSCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(PostSave, func, arg);
+    m_PostSaveCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnPreCopyCallBack(CK_COPYCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnPreCopy, func, arg, temp);
+void HookManager::AddOnPreCopyCallBack(CK_COPYCALLBACK func, void *arg) {
+    m_OnPreCopyCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnPreCopyCallBack(CK_COPYCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnPreCopy, func, arg);
+    m_OnPreCopyCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnPostCopyCallBack(CK_COPYCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnPostCopy, func, arg, temp);
+void HookManager::AddOnPostCopyCallBack(CK_COPYCALLBACK func, void *arg) {
+    m_OnPostCopyCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnPostCopyCallBack(CK_COPYCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnPostCopy, func, arg);
+    m_OnPostCopyCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnPreRenderCallBack(CK_RENDERCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnPreRender, func, arg, temp);
+void HookManager::AddOnPreRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
+    m_OnPreRenderCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnPreRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnPreRender, func, arg);
+    m_OnPreRenderCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnPostRenderCallBack(CK_RENDERCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnPostRender, func, arg, temp);
+void HookManager::AddOnPostRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
+    m_OnPostRenderCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnPostRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnPostRender, func, arg);
+    m_OnPostRenderCallbacks.Remove(func, arg);
 }
 
-void HookManager::AddOnPostSpriteRenderCallBack(CK_RENDERCALLBACK func, void *arg, CKBOOL temp) {
-    if (!func) return;
-    HM_ADD_CALLBACK(OnPostSpriteRender, func, arg, temp);
+void HookManager::AddOnPostSpriteRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
+    m_OnPostSpriteRenderCallbacks.Append(func, arg);
 }
 
 void HookManager::RemoveOnPostSpriteRenderCallBack(CK_RENDERCALLBACK func, void *arg) {
-    if (!func) return;
-    HM_REMOVE_CALLBACK(OnPostSpriteRender, func, arg);
+    m_OnPostSpriteRenderCallbacks.Remove(func, arg);
 }
-
-#undef HM_ADD_CALLBACK
-#undef HM_REMOVE_CALLBACK
