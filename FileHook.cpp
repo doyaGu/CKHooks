@@ -920,7 +920,8 @@ void CP_FILE_METHOD_NAME(FinishLoading)(CKObjectArray *list, CKDWORD flags) {
 
         if (!hasGridManager) {
             CKBaseManager *manager = m_Context->GetManagerByGuid(GRID_MANAGER_GUID);
-            manager->LoadData(nullptr, this);
+            if (manager)
+                manager->LoadData(nullptr, this);
         }
 
         bool levelLoaded = false;
