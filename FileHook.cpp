@@ -4,6 +4,7 @@
 #include "CKPluginManager.h"
 #include "CKPathManager.h"
 #include "CKParameterManager.h"
+#include "CKAttributeManager.h"
 #include "CKBehavior.h"
 #include "CKBeObject.h"
 #include "CKInterfaceObjectManager.h"
@@ -71,6 +72,18 @@ struct CKFileHeader {
     CKFileHeaderPart1 Part1;
 };
 
+typedef void (CKPluginManager::*CKPluginManagerComputeDependenciesListFunc)(CKFile *file);
+static CKPluginManagerComputeDependenciesListFunc g_CKPluginManagerComputeDependenciesListFunc = nullptr;
+
+typedef void (CKContext::*CKContextExecuteManagersPreSaveFunc)();
+static CKContextExecuteManagersPreSaveFunc g_CKContextExecuteManagersPreSaveFunc = nullptr;
+
+typedef void (CKContext::*CKContextExecuteManagersPostSaveFunc)();
+static CKContextExecuteManagersPostSaveFunc g_CKContextExecuteManagersPostSaveFunc = nullptr;
+
+typedef void (CKContext::*CKContextWarnAllBehaviorsFunc)(CKDWORD Message);
+static CKContextWarnAllBehaviorsFunc g_CKContextWarnAllBehaviorsFunc = nullptr;
+
 typedef void (CKBehavior::*CKBehaviorApplyPatchLoadFunc)();
 static CKBehaviorApplyPatchLoadFunc g_CKBehaviorApplyPatchLoadFunc = nullptr;
 
@@ -83,6 +96,9 @@ static ClearStringArrayFunc g_ClearStringArrayFunc = nullptr;
 typedef void (XClassArray<XString>::*ResizeStringArrayFunc)(int size);
 static ResizeStringArrayFunc g_ResizeStringArrayFunc = nullptr;
 
+typedef void (XClassArray<XString>::*InsertStringArrayFunc)(XString *i, const XString &o);
+static InsertStringArrayFunc g_InsertStringArrayFunc = nullptr;
+
 typedef void (XClassArray<CKFilePluginDependencies>::*ResizePluginsDepsArrayFunc)(int size);
 static ResizePluginsDepsArrayFunc g_ResizePluginsDepsArrayFunc = nullptr;
 
@@ -92,10 +108,25 @@ static ClearIndexByClassIdArrayFunc g_ClearIndexByClassIdArrayFunc = nullptr;
 typedef void (XClassArray<XArray<int>>::*ResizeIndexByClassIdArrayFunc)(int size);
 static ResizeIndexByClassIdArrayFunc g_ResizeIndexByClassIdArrayFunc = nullptr;
 
+typedef XFileObjectsTable::Iterator (XFileObjectsTable::*InsertObjectsHashTableFunc)(const CK_ID &key, const int &o);
+static InsertObjectsHashTableFunc g_InsertObjectsHashTableFunc = nullptr;
+
 static int *g_MaxClassID = nullptr;
 static CKDWORD *g_CurrentFileVersion = nullptr;
 static CKDWORD *g_CurrentFileWriteMode = nullptr;
 static CKBOOL *g_WarningForOlderVersion = nullptr;
+
+CKSTRING CKJustFile(CKSTRING path) {
+    static char buffer[256];
+
+    if (!path)
+        return nullptr;
+
+    CKPathSplitter splitter(path);
+    strcpy(buffer, splitter.GetName());
+    strcat(buffer, splitter.GetExtension());
+    return buffer;
+}
 
 CKBufferParser::CKBufferParser(void *Buffer, int Size)
     : m_Valid(FALSE),
@@ -378,35 +409,511 @@ CKERROR CP_FILE_METHOD_NAME(LoadMemory)(void *MemoryBuffer, int BufferSize, CKOb
 }
 
 CKERROR CP_FILE_METHOD_NAME(StartSave)(CKSTRING filename, CKDWORD flags) {
+#if CKVERSION == 0x13022002
+    ClearData();
+
+    // m_Context->ExecuteManagersPreSave();
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPreSaveFunc);
+    m_Context->m_Saving = TRUE;
+
+    m_Flags = flags;
+    m_SceneSaved = TRUE;
+    m_FileObjects.Resize(0);
+    // m_IndexByClassId.Resize(*g_MaxClassID);
+    CP_CALL_METHOD(m_IndexByClassId, g_ResizeIndexByClassIdArrayFunc, *g_MaxClassID);
+
+    CKDeletePointer(m_FileName);
+    if (!filename) {
+        m_Context->m_Saving = FALSE;
+        return CKERR_INVALIDFILE;
+    }
+
+    m_FileName = CKStrdup(filename);
+    FILE *fp = fopen(m_FileName, "ab");
+    if (!fp)
+        return CKERR_CANTWRITETOFILE;
+
+    fclose(fp);
+
+    // m_Context->WarnAllBehaviors(CKM_BEHAVIORPRESAVE);
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextWarnAllBehaviorsFunc, CKM_BEHAVIORPRESAVE);
+
+    return CK_OK;
+#elif CKVERSION == 0x05082002
     return CP_CALL_METHOD_ORIG(StartSave, filename, flags);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(SaveObject)(CKObject *obj, CKDWORD flags) {
+#if CKVERSION == 0x13022002
+    if (!obj)
+        return;
+    if (m_AlreadySavedMask.IsSet(obj->GetID()))
+        return;
+
+    m_AlreadySavedMask.Set(obj->GetID());
+    if (obj->IsDynamic() || (obj->GetObjectFlags() & CK_OBJECT_NOTTOBESAVED))
+        return;
+
+    if (CKIsChildClassOf(obj->GetClassID(), CKCID_SCENE) || CKIsChildClassOf(obj->GetClassID(), CKCID_LEVEL))
+        m_SceneSaved = TRUE;
+
+    if (obj->GetID() > (CK_ID)m_SaveIDMax)
+        m_SaveIDMax = (int)obj->GetID();
+
+    if (!CKIsChildClassOf(obj->GetClassID(), CKCID_LEVEL))
+        obj->PreSave(this, flags);
+
+    if (m_AlreadyReferencedMask.IsSet(obj->GetID())) {
+        m_ReferencedObjects.Remove(obj);
+        m_AlreadyReferencedMask.Unset(obj->GetID());
+    } else {
+        CKFileObject fileObj;
+        fileObj.Object = obj->GetID();
+        fileObj.ObjPtr = obj;
+        fileObj.ObjectCid = obj->GetClassID();
+        fileObj.SaveFlags = flags;
+        fileObj.Name = CKStrdup(obj->GetName());
+        m_FileObjects.PushBack(fileObj);
+        // m_ObjectsHashTable.Insert(m_FileObjects.Size() - 1, obj->GetID());
+        CP_CALL_METHOD(m_ObjectsHashTable, g_InsertObjectsHashTableFunc, m_FileObjects.Size() - 1, obj->GetID());
+        m_IndexByClassId[obj->GetClassID()] = m_FileObjects.Size() - 1;
+    }
+
+    if (CKIsChildClassOf(obj->GetClassID(), CKCID_LEVEL))
+        obj->PreSave(this, flags);
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(SaveObject, obj, flags);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(SaveObjects)(CKObjectArray *array, CKDWORD flags) {
+#if CKVERSION == 0x13022002
+    if (!array)
+        return;
+
+    array->Reset();
+    while (!array->EndOfList()) {
+        CKObject *obj = array->GetData(m_Context);
+        SaveObject(obj, flags);
+        array->Next();
+    }
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(SaveObjects, array, flags);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(SaveObjects2)(CK_ID *ids, int count, CKDWORD flags) {
+#if CKVERSION == 0x13022002
+    for (int i = 0; i < count; ++i) {
+        CKObject *obj = m_Context->GetObject(ids[i]);
+        SaveObject(obj, flags);
+    }
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(SaveObjects2, ids, count, flags);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(SaveObjects3)(CKObject **objs, int count, CKDWORD flags) {
+#if CKVERSION == 0x13022002
+    for (int i = 0; i < count; ++i) {
+        SaveObject(objs[i], flags);
+    }
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(SaveObjects3, objs, count, flags);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(SaveObjectAsReference)(CKObject *obj) {
+#if CKVERSION == 0x13022002
+    if (!obj)
+        return;
+
+    if (obj->IsDynamic() || (obj->GetObjectFlags() & CK_OBJECT_NOTTOBESAVED) ||
+        m_AlreadySavedMask.IsSet(obj->GetID()) ||
+        m_AlreadyReferencedMask.IsSet(obj->GetID()))
+        return;
+
+    m_AlreadyReferencedMask.Set(obj->GetID());
+
+    if (obj->GetID() > (CK_ID)m_SaveIDMax)
+        m_SaveIDMax = obj->GetID();
+
+    m_ReferencedObjects.PushBack(obj);
+
+    if (CKIsChildClassOf(obj->GetClassID(), CKCID_SCENE) || CKIsChildClassOf(obj->GetClassID(), CKCID_LEVEL))
+        m_SceneSaved = TRUE;
+
+    CKFileObject fileObj;
+    fileObj.Object = obj->GetID();
+    fileObj.ObjPtr = obj;
+    fileObj.ObjectCid = obj->GetClassID();
+    fileObj.SaveFlags = 0;
+    fileObj.Name = CKStrdup(obj->GetName());
+    m_FileObjects.PushBack(fileObj);
+    // m_ObjectsHashTable.Insert(m_FileObjects.Size() - 1, obj->GetID());
+    CP_CALL_METHOD(m_ObjectsHashTable, g_InsertObjectsHashTableFunc, m_FileObjects.Size() - 1, obj->GetID());
+    m_IndexByClassId[obj->GetClassID()] = m_FileObjects.Size() - 1;
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(SaveObjectAsReference, obj);
+#endif
 }
 
 CKERROR CP_FILE_METHOD_NAME(EndSave)() {
+#if CKVERSION == 0x13022002
+    for (XObjectPointerArray::Iterator it = m_ReferencedObjects.Begin(); it != m_ReferencedObjects.End(); ++it) {
+        if (*it) {
+            (*it)->m_ObjectFlags |= CK_OBJECT_ONLYFORFILEREFERENCE;
+        }
+    }
+
+    XObjectArray scripts;
+    int fileObjectCount = m_FileObjects.Size();
+    for (int i = 0; i < fileObjectCount; ++i) {
+        CKFileObject &fileObject = m_FileObjects[i];
+        CKObject *obj = m_Context->GetObject(fileObject.Object);
+        if (obj) {
+            if (CKIsChildClassOf(fileObject.ObjectCid, CKCID_BEHAVIOR)) {
+                CKBehavior *beh = (CKBehavior *) fileObject.ObjPtr;
+                if ((beh->GetFlags() & CKBEHAVIOR_SCRIPT) && !beh->GetInterfaceChunk()) {
+                    scripts.PushBack(beh->GetID());
+                }
+            }
+        }
+    }
+
+    if (m_Context->m_UICallBackFct) {
+        CKUICallbackStruct cbs;
+        cbs.Reason = CKUIM_CREATEINTERFACECHUNK;
+        cbs.Param1 = (CKDWORD) &scripts;
+        m_Context->m_UICallBackFct(cbs, m_Context->m_InterfaceModeData);
+    }
+
+    int interfaceDataSize = 0;
+    for (int i = 0; i < fileObjectCount; ++i) {
+        CKFileObject &fileObject = m_FileObjects[i];
+        CKObject *obj = m_Context->GetObject(fileObject.Object);
+        if (obj) {
+            CKStateChunk *chunk = obj->Save(this, fileObject.SaveFlags);
+            chunk->CloseChunk();
+            fileObject.Data = chunk;
+
+            if (CKIsChildClassOf(fileObject.ObjectCid, CKCID_BEHAVIOR)) {
+                CKBehavior *beh = (CKBehavior *) fileObject.ObjPtr;
+                CKStateChunk *interfaceChunk = beh->GetInterfaceChunk();
+                if (interfaceChunk)
+                    interfaceDataSize += interfaceChunk->GetDataSize() + 2 * (int)sizeof(CKDWORD);
+            }
+        }
+
+        if (m_Context->m_UICallBackFct) {
+            CKUICallbackStruct cbs;
+            cbs.Reason = CKUIM_LOADSAVEPROGRESS;
+            cbs.Param1 = i;
+            cbs.Param2 = fileObjectCount;
+            m_Context->m_UICallBackFct(cbs, m_Context->m_InterfaceModeData);
+        }
+    }
+
+    // m_Context->WarnAllBehaviors(CKM_BEHAVIORPOSTSAVE);
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextWarnAllBehaviorsFunc, CKM_BEHAVIORPOSTSAVE);
+
+    int managerCount = m_Context->GetManagerCount();
+    int savedManagerCount = 0;
+    if (managerCount > 0) {
+        m_ManagersData.Resize(managerCount);
+
+        for (int i = 0; i < managerCount; ++i) {
+            CKBaseManager *manager = m_Context->GetManager(i);
+
+            CKFileManagerData *managerData = &m_ManagersData[i];
+            managerData->data = nullptr;
+            managerData->Manager = manager->GetGuid();
+
+            managerData->data = manager->SaveData(this);
+            if (managerData->data)
+                ++savedManagerCount;
+        }
+    }
+    m_ManagersData.Resize(savedManagerCount);
+
+    CKPluginManager *pm = CKGetPluginManager();
+    // pm->ComputeDependenciesList(this);
+    CP_CALL_METHOD_PTR(pm, g_CKPluginManagerComputeDependenciesListFunc, this);
+
+    int objectInfoSize = 0;
+    int objectDataSize = 0;
+    for (int i = 0; i < fileObjectCount; ++i) {
+        CKFileObject &fileObject = m_FileObjects[i];
+        objectInfoSize += 4 * (int)sizeof(CKDWORD);
+        if (fileObject.Name)
+            objectInfoSize += strlen(fileObject.Name);
+
+        int packSize;
+        if (fileObject.Data) {
+            packSize = fileObject.Data->ConvertToBuffer(nullptr);
+        } else {
+            packSize = 0;
+        }
+
+        fileObject.PrePackSize = packSize;
+        fileObject.PostPackSize = packSize;
+        objectDataSize += fileObject.PostPackSize + (int)sizeof(CKDWORD);
+    }
+
+    int managerDataSize = 0;
+    for (int i = 0; i < savedManagerCount; ++i) {
+        CKFileManagerData &managerData = m_ManagersData[i];
+        if (managerData.data) {
+            managerDataSize += managerData.data->ConvertToBuffer(nullptr);
+        }
+        managerDataSize += 3 * sizeof(CKDWORD);
+    }
+
+    int pluginDepCount = m_PluginsDep.Size();
+    int pluginDepsSize = (int)sizeof(CKDWORD);
+    for (int i = 0; i < pluginDepCount; ++i) {
+        CKFilePluginDependencies &pluginDep = m_PluginsDep[i];
+        pluginDepsSize += pluginDep.m_Guids.Size() * (int)sizeof(CKGUID) + 2 * (int)sizeof(CKDWORD);
+    }
+
+    int hdr1PackSize = objectInfoSize + pluginDepsSize + (int)(sizeof(CKDWORD) + sizeof(CKDWORD));
+    int dataUnPackSize = objectDataSize + managerDataSize;
+
+    if (fileObjectCount > 0) {
+        m_FileObjects[0].FileIndex = (int)sizeof(CKFileHeader) + hdr1PackSize + managerDataSize;
+        for (int i = 1; i < fileObjectCount; ++i) {
+            CKFileObject &fileObject = m_FileObjects[i];
+            CKFileObject &prevFileObject = m_FileObjects[i - 1];
+            fileObject.FileIndex = prevFileObject.FileIndex + prevFileObject.PostPackSize + (int)sizeof(CKDWORD);
+        }
+    }
+
+    CKFileHeader header = {};
+    strcpy(header.Part0.Signature, "Nemo Fi");
+    header.Part0.Crc = 0;
+    header.Part0.FileVersion2 = 0;
+    header.Part0.CKVersion = CKVERSION;
+    header.Part0.FileVersion = 8;
+    header.Part0.FileWriteMode = m_Context->GetFileWriteMode();
+    header.Part1.ObjectCount = fileObjectCount;
+    header.Part1.ManagerCount = savedManagerCount;
+    header.Part1.Hdr1UnPackSize = hdr1PackSize;
+    header.Part1.DataUnPackSize = dataUnPackSize;
+    header.Part0.Hdr1PackSize = hdr1PackSize;
+    header.Part1.DataPackSize = dataUnPackSize;
+    header.Part1.ProductVersion = m_Context->m_VirtoolsVersion;
+    header.Part1.ProductBuild = m_Context->m_VirtoolsBuild;
+    header.Part1.MaxIDSaved = m_SaveIDMax;
+
+    char *hdr1Buffer = new char[hdr1PackSize];
+    CKBufferParser *hdr1BufferParser = new (VxMalloc(sizeof(CKBufferParser))) CKBufferParser(hdr1Buffer, hdr1PackSize);
+    hdr1BufferParser->m_Valid = TRUE;
+
+    CKBufferParser *parser = hdr1BufferParser;
+
+    if (fileObjectCount > 0) {
+        for (int i = 0; i < fileObjectCount; ++i) {
+            CKFileObject &fileObject = m_FileObjects[i];
+            int nameSize = (fileObject.Name) ? (int)strlen(fileObject.Name) : 0;
+
+            CK_ID objId = fileObject.Object;
+            if (fileObject.ObjPtr &&
+                (fileObject.ObjPtr->m_ObjectFlags & CK_OBJECT_ONLYFORFILEREFERENCE) != 0) {
+                objId |= 0x800000;
+                fileObject.ObjPtr->m_ObjectFlags &= ~CK_OBJECT_ONLYFORFILEREFERENCE;
+            }
+
+            parser->Write(&objId, sizeof(CK_ID));
+            parser->Write(&fileObject.ObjectCid, sizeof(CK_CLASSID));
+            parser->Write(&fileObject.FileIndex, sizeof(int));
+            parser->Write(&nameSize, sizeof(int));
+            if (nameSize > 0) {
+                parser->Write(fileObject.Name, nameSize);
+            }
+        }
+    }
+
+    parser->Write(&pluginDepCount, sizeof(int));
+    for (int i = 0; i < pluginDepCount; ++i) {
+        CKFilePluginDependencies &pluginDep = m_PluginsDep[i];
+
+        parser->Write(&pluginDep.m_PluginCategory, sizeof(int));
+
+        int guidCount = pluginDep.m_Guids.Size();
+        parser->Write(&guidCount, sizeof(int));
+        if (guidCount > 0) {
+            parser->Write(pluginDep.m_Guids.Begin(), guidCount * (int)sizeof(CKGUID));
+        }
+    }
+
+    parser->Seek(0);
+    if ((header.Part0.FileWriteMode & (CKFILE_WHOLECOMPRESSED | CKFILE_CHUNKCOMPRESSED_OLD)) != 0) {
+        parser = parser->Pack(hdr1PackSize, m_Context->GetCompressionLevel());
+        if (parser && (CKDWORD)parser->Size() < header.Part1.Hdr1UnPackSize) {
+            header.Part0.Hdr1PackSize = parser->Size();
+            VxDelete<CKBufferParser>(hdr1BufferParser);
+            hdr1BufferParser = parser;
+        } else {
+            VxDelete<CKBufferParser>(parser);
+            parser = hdr1BufferParser;
+            header.Part0.Hdr1PackSize = header.Part1.Hdr1UnPackSize;
+        }
+    }
+
+    char *dataBuffer = new char[dataUnPackSize];
+    CKBufferParser *dataBufferParser = new (VxMalloc(sizeof(CKBufferParser))) CKBufferParser(dataBuffer, dataUnPackSize);
+    dataBufferParser->m_Valid = TRUE;
+    parser = dataBufferParser;
+    if (!parser || !parser->m_Buffer) {
+        if (hdr1BufferParser)
+            VxDelete<CKBufferParser>(hdr1BufferParser);
+        if (parser)
+            VxDelete<CKBufferParser>(parser);
+
+        m_Context->m_Saving = FALSE;
+        // m_Context->ExecuteManagersPostSave();
+        CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPostSaveFunc);
+    }
+
+    if (savedManagerCount > 0) {
+        for (int i = 0; i < savedManagerCount; ++i) {
+            CKFileManagerData &managerData = m_ManagersData[i];
+            parser->Write(&managerData.Manager, sizeof(CKGUID));
+            parser->InsertChunk(managerData.data);
+            VxDelete<CKStateChunk>(managerData.data);
+            managerData.data = nullptr;
+        }
+    }
+
+    if (fileObjectCount > 0) {
+        for (int i = 0; i < fileObjectCount; ++i) {
+            CKFileObject &fileObject = m_FileObjects[i];
+            parser->Write(&fileObject.PrePackSize, sizeof(int));
+            parser->InsertChunk(fileObject.Data);
+            VxDelete<CKStateChunk>(fileObject.Data);
+            fileObject.Data = nullptr;
+        }
+    }
+
+    parser->Seek(0);
+    if ((header.Part0.FileWriteMode & (CKFILE_WHOLECOMPRESSED | CKFILE_CHUNKCOMPRESSED_OLD)) != 0) {
+        parser = parser->Pack((int)header.Part1.Hdr1UnPackSize, m_Context->GetCompressionLevel());
+        if (parser && (CKDWORD)parser->Size() < header.Part1.DataUnPackSize) {
+            header.Part1.DataPackSize = parser->Size();
+            VxDelete<CKBufferParser>(dataBufferParser);
+            dataBufferParser = parser;
+        } else {
+            VxDelete<CKBufferParser>(parser);
+            parser = dataBufferParser;
+            header.Part1.DataPackSize = header.Part1.DataUnPackSize;
+        }
+    }
+
+    CKDWORD crc = CKComputeDataCRC((char *)&header.Part0, sizeof(CKFileHeaderPart0));
+    crc = CKComputeDataCRC((char *)&header.Part1, sizeof(CKFileHeaderPart1), crc);
+    crc = hdr1BufferParser->ComputeCRC(hdr1BufferParser->Size(), crc);
+    crc = dataBufferParser->ComputeCRC(dataBufferParser->Size(), crc);
+    header.Part0.Crc = crc;
+
+    m_FileInfo.ProductVersion = header.Part1.ProductVersion;
+    m_FileInfo.ProductBuild = header.Part1.ProductBuild;
+    m_FileInfo.FileWriteMode = header.Part0.FileWriteMode;
+    m_FileInfo.CKVersion = header.Part0.CKVersion;
+    m_FileInfo.FileVersion = header.Part0.FileVersion;
+    m_FileInfo.Hdr1PackSize = header.Part0.Hdr1PackSize;
+    m_FileInfo.FileSize = sizeof(CKFileHeader) + header.Part0.Hdr1PackSize + header.Part1.DataPackSize;
+    m_FileInfo.Hdr1UnPackSize = header.Part1.Hdr1UnPackSize;
+    m_FileInfo.ManagerCount = header.Part1.ManagerCount;
+    m_FileInfo.DataPackSize = header.Part1.DataPackSize;
+    m_FileInfo.ObjectCount = header.Part1.ObjectCount;
+    m_FileInfo.DataUnPackSize = header.Part1.DataUnPackSize;
+    m_FileInfo.MaxIDSaved = header.Part1.MaxIDSaved;
+    m_FileInfo.Crc = crc;
+    WriteStats(interfaceDataSize);
+
+    ClearData();
+
+    m_Context->SetAutomaticLoadMode(CKLOAD_INVALID, CKLOAD_INVALID, CKLOAD_INVALID, CKLOAD_INVALID);
+    m_Context->SetUserLoadCallback(nullptr, nullptr);
+
+    FILE *fp = fopen(m_FileName, "wb");
+    if (!fp) {
+        VxDelete<CKBufferParser>(hdr1BufferParser);
+        VxDelete<CKBufferParser>(dataBufferParser);
+
+        m_Context->m_Saving = FALSE;
+        // m_Context->ExecuteManagersPostSave();
+        CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPostSaveFunc);
+    }
+
+    CKERROR err = CK_OK;
+
+    hdr1BufferParser->Seek(0);
+    dataBufferParser->Seek(0);
+    if (fwrite(&header.Part0, sizeof(CKFileHeaderPart0), 1, fp) == 1 &&
+        fwrite(&header.Part1, sizeof(CKFileHeaderPart1), 1, fp) == 1 &&
+        fwrite(&hdr1BufferParser->m_Buffer[hdr1BufferParser->CursorPos()], hdr1BufferParser->Size(), 1, fp) == 1 &&
+        fwrite(&dataBufferParser->m_Buffer[dataBufferParser->CursorPos()], dataBufferParser->Size(), 1, fp) == 1) {
+        int includeFileCount = m_IncludedFiles.Size();
+        for (int i = 0; i < includeFileCount; ++i) {
+            XString &filename = m_IncludedFiles[i];
+            VxMemoryMappedFile mmf(filename.Str());
+
+            XString name(CKJustFile(filename.Str()));
+            int length = name.Length();
+            fwrite(&length, sizeof(int), 1, fp);
+            if (length != 0) {
+                fwrite(name.Str(), length, 1, fp);
+            }
+
+            if (mmf.GetErrorType() == VxMMF_NoError) {
+                CKDWORD size = mmf.GetFileSize();
+                fwrite(&size, sizeof(CKDWORD), 1, fp);
+                fwrite(mmf.GetBase(), size, 1, fp);
+            } else {
+                CKDWORD stub = 0;
+                fwrite(&stub, sizeof(CKDWORD), 1, fp);
+            }
+        }
+        // m_IncludedFiles.Clear();
+        CP_CALL_METHOD(m_IncludedFiles, g_ClearStringArrayFunc);
+    } else {
+        err = CKERR_NOTENOUGHDISKPLACE;
+    }
+
+    VxDelete<CKBufferParser>(hdr1BufferParser);
+    VxDelete<CKBufferParser>(dataBufferParser);
+
+    fclose(fp);
+
+    // m_Context->ExecuteManagersPostSave();
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPostSaveFunc);
+
+    m_Context->m_Saving = FALSE;
+
+    return err;
+#elif CKVERSION == 0x05082002
     return CP_CALL_METHOD_ORIG(EndSave);
+#endif
 }
 
 CKBOOL CP_FILE_METHOD_NAME(IncludeFile)(CKSTRING FileName, int SearchPathCategory) {
+#if CKVERSION == 0x13022002
+    if (!FileName || strlen(FileName) == 0)
+        return FALSE;
+
+    XString filename = FileName;
+    if (SearchPathCategory <= -1 || m_Context->GetPathManager()->ResolveFileName(filename, SearchPathCategory) == CK_OK) {
+        // m_IncludedFiles.PushBack(filename);
+        CP_CALL_METHOD(m_IncludedFiles, g_InsertStringArrayFunc, m_IncludedFiles.End(), filename);
+        return TRUE;
+    }
+
+    return FALSE;
+#elif CKVERSION == 0x05082002
     return CP_CALL_METHOD_ORIG(IncludeFile, FileName, SearchPathCategory);
+#endif
 }
 
 CKBOOL CP_FILE_METHOD_NAME(IsObjectToBeSaved)(CK_ID iID) {
@@ -425,7 +932,22 @@ CKBOOL CP_FILE_METHOD_NAME(IsObjectToBeSaved)(CK_ID iID) {
 }
 
 void CP_FILE_METHOD_NAME(LoadAndSave)(CKSTRING filename, CKSTRING filename_new) {
+#if CKVERSION == 0x13022002
+    CKAttributeManager *am = m_Context->GetAttributeManager();
+    CKObjectArray array = CKObjectArray();
+    if (!Load(filename, &array, CK_LOAD_DEFAULT)) {
+        am->m_Saving = TRUE;
+        m_Context->SetFileWriteMode((CK_FILE_WRITEMODE) *g_CurrentFileWriteMode);
+        if (!StartSave(filename_new, 0)) {
+            SaveObjects(&array, 0xFFFFFFFF);
+            EndSave();
+        }
+        am->m_Saving = FALSE;
+    }
+    array.Clear();
+#elif CKVERSION == 0x05082002
     CP_CALL_METHOD_ORIG(LoadAndSave, filename, filename_new);
+#endif
 }
 
 void CP_FILE_METHOD_NAME(RemapManagerInt)(CKGUID Manager, int *ConversionTable, int TableSize) {
@@ -1204,16 +1726,25 @@ bool CP_HOOK_CLASS_NAME(CKFile)::InitHooks(HookApi *api) {
     assert(base != nullptr);
 
 #if CKVERSION == 0x13022002
+    g_CKPluginManagerComputeDependenciesListFunc = utils::ForceReinterpretCast<CKPluginManagerComputeDependenciesListFunc>(base, 0x14D26);
+
+    g_CKContextExecuteManagersPreSaveFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPreSaveFunc>(base, 0x373D6);
+    g_CKContextExecuteManagersPostSaveFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPostSaveFunc>(base, 0x3744C);
+    g_CKContextWarnAllBehaviorsFunc = utils::ForceReinterpretCast<CKContextWarnAllBehaviorsFunc>(base, 0x36962);
+
     g_CKBehaviorApplyPatchLoadFunc = utils::ForceReinterpretCast<CKBehaviorApplyPatchLoadFunc>(base, 0x6337);
     g_CKBeObjectApplyOwnerFunc = utils::ForceReinterpretCast<CKBeObjectApplyOwnerFunc>(base, 0x1BBA6);
 
     g_ClearStringArrayFunc = utils::ForceReinterpretCast<ClearStringArrayFunc>(base, 0xDFD7);
     g_ResizeStringArrayFunc = utils::ForceReinterpretCast<ResizeStringArrayFunc>(base, 0x20A0F);
+    g_InsertStringArrayFunc = utils::ForceReinterpretCast<InsertStringArrayFunc>(base, 0xE0E2);
 
     g_ResizePluginsDepsArrayFunc = utils::ForceReinterpretCast<ResizePluginsDepsArrayFunc>(base, 0x2098F);
 
     g_ClearIndexByClassIdArrayFunc = utils::ForceReinterpretCast<ClearIndexByClassIdArrayFunc>(base, 0x209C3);
     g_ResizeIndexByClassIdArrayFunc = utils::ForceReinterpretCast<ResizeIndexByClassIdArrayFunc>(base, 0x209E0);
+
+    g_InsertObjectsHashTableFunc = utils::ForceReinterpretCast<InsertObjectsHashTableFunc>(base, 0x2083B);
 
     g_MaxClassID = utils::ForceReinterpretCast<decltype(g_MaxClassID)>(base, 0x5AB0C);
     g_CurrentFileWriteMode = utils::ForceReinterpretCast<decltype(g_CurrentFileWriteMode)>(base, 0x5F6B8);
