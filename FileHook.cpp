@@ -44,6 +44,33 @@ CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ResolveReference);
 #define CP_FILE_METHOD_NAME(Name) CP_HOOK_CLASS_NAME(CKFile)::CP_FUNC_NAME(Name)
 
 #if CKVERSION == 0x13022002
+
+struct CKFileHeaderPart0 {
+    char Signature[8];
+    CKDWORD Crc;
+    CKDWORD CKVersion;
+    CKDWORD FileVersion;
+    CKDWORD FileVersion2;
+    CKDWORD FileWriteMode;
+    CKDWORD Hdr1PackSize;
+};
+
+struct CKFileHeaderPart1 {
+    CKDWORD DataPackSize;
+    CKDWORD DataUnPackSize;
+    CKDWORD ManagerCount;
+    CKDWORD ObjectCount;
+    CKDWORD MaxIDSaved;
+    CKDWORD ProductVersion;
+    CKDWORD ProductBuild;
+    CKDWORD Hdr1UnPackSize;
+};
+
+struct CKFileHeader {
+    CKFileHeaderPart0 Part0;
+    CKFileHeaderPart1 Part1;
+};
+
 typedef void (CKBehavior::*CKBehaviorApplyPatchLoadFunc)();
 static CKBehaviorApplyPatchLoadFunc g_CKBehaviorApplyPatchLoadFunc = nullptr;
 
@@ -145,9 +172,7 @@ CKStateChunk *CKBufferParser::ExtractChunk(int Size, CKFile *f) {
 void CKBufferParser::ExtractChunk(int Size, CKFile *f, CKFileChunk *chunk) {}
 
 CKDWORD CKBufferParser::ComputeCRC(int Size, CKDWORD PrevCRC) {
-    CKDWORD crc = CKComputeDataCRC(&m_Buffer[m_CursorPos], Size, PrevCRC);
-    m_CursorPos += Size;
-    return crc;
+    return CKComputeDataCRC(&m_Buffer[m_CursorPos], Size, PrevCRC);
 }
 
 CKBufferParser *CKBufferParser::Extract(int Size) {
@@ -180,13 +205,13 @@ CKBufferParser *CKBufferParser::UnPack(int UnpackSize, int PackSize) {
 }
 
 void CKBufferParser::InsertChunk(CKStateChunk *chunk) {
+    if (!chunk)
+        return;
+
     int size = 0;
-    if (chunk)
-        size = chunk->ConvertToBuffer(nullptr);
-    Write(&size, sizeof(int));
-    if (chunk)
-        chunk->ConvertToBuffer(&m_Buffer[m_CursorPos]);
+    size = chunk->ConvertToBuffer(&m_Buffer[m_CursorPos]);
     m_CursorPos += size;
+    Write(&size, sizeof(int));
 }
 
 CKBufferParser *CKBufferParser::Pack(int Size, int CompressionLevel) {
@@ -472,83 +497,57 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileHeaders)(CKBufferParser **ParserPtr) {
     if (parser->Size() < 32)
         return CKERR_INVALIDFILE;
 
-    union CKFileHdr0 {
-        struct {
-            CKDWORD Signature0;
-            CKDWORD Signature1;
-            CKDWORD Crc;
-            CKDWORD CKVersion;
-            CKDWORD FileVersion;
-            CKDWORD FileVersion2;
-            CKDWORD FileWriteMode;
-            CKDWORD Hdr1PackSize;
-        };
-        CKDWORD d[8];
-        char b[32];
-    } hdr0;
+    CKFileHeader header = {};
 
-    parser->Read(hdr0.d, sizeof(hdr0));
+    parser->Read(&header.Part0, sizeof(CKFileHeaderPart0));
 
-    if (hdr0.FileVersion2 != 0) {
-        memset(hdr0.d, 0, sizeof(hdr0));
+    if (header.Part0.FileVersion2 != 0) {
+        memset(&header.Part0, 0, sizeof(CKFileHeaderPart0));
         *g_WarningForOlderVersion = TRUE;
     }
 
-    if (hdr0.FileVersion >= 10) {
+    if (header.Part0.FileVersion >= 10) {
         m_Context->OutputToConsole((CKSTRING)"This version is too old to load this file");
         return CKERR_OBSOLETEVIRTOOLS;
     }
 
-    union CKFileHdr1 {
-        struct {
-            CKDWORD DataPackSize;
-            CKDWORD DataUnPackSize;
-            CKDWORD ManagerCount;
-            CKDWORD ObjectCount;
-            CKDWORD MaxIDSaved;
-            CKDWORD ProductVersion;
-            CKDWORD ProductBuild;
-            CKDWORD Hdr1UnPackSize;
-        };
-        CKDWORD d[8];
-        char b[32];
-    } hdr1;
-
-    if (hdr0.FileVersion < 5) {
-        memset(hdr1.b, 0, sizeof(hdr1));
+    if (header.Part0.FileVersion < 5) {
+        memset(&header.Part1, 0, sizeof(CKFileHeaderPart1));
     } else if (parser->Size() >= 64) {
-        parser->Read(hdr1.b, sizeof(hdr1));
+        parser->Read(&header.Part1, sizeof(CKFileHeaderPart1));
     } else {
         return CKERR_INVALIDFILE;
     }
 
-    if (hdr1.ProductVersion >= 12) {
-        hdr1.ProductVersion = 0;
-        hdr1.ProductBuild = 0x1010000;
+    if (header.Part1.ProductVersion >= 12) {
+        header.Part1.ProductVersion = 0;
+        header.Part1.ProductBuild = 0x1010000;
     }
 
-    m_FileInfo.ProductVersion = hdr1.ProductVersion;
-    m_FileInfo.ProductBuild = hdr1.ProductBuild;
-    m_FileInfo.FileWriteMode = hdr0.FileWriteMode;
-    m_FileInfo.CKVersion = hdr0.CKVersion;
-    m_FileInfo.FileVersion = hdr0.FileVersion;
+    m_FileInfo.ProductVersion = header.Part1.ProductVersion;
+    m_FileInfo.ProductBuild = header.Part1.ProductBuild;
+    m_FileInfo.FileWriteMode = header.Part0.FileWriteMode;
+    m_FileInfo.CKVersion = header.Part0.CKVersion;
+    m_FileInfo.FileVersion = header.Part0.FileVersion;
     m_FileInfo.FileSize = parser->Size();
-    m_FileInfo.ManagerCount = hdr1.ManagerCount;
-    m_FileInfo.ObjectCount = hdr1.ObjectCount;
-    m_FileInfo.MaxIDSaved = hdr1.MaxIDSaved;
-    m_FileInfo.Hdr1PackSize = hdr0.Hdr1PackSize;
-    m_FileInfo.Hdr1UnPackSize = hdr1.Hdr1UnPackSize;
-    m_FileInfo.DataPackSize = hdr1.DataPackSize;
-    m_FileInfo.DataUnPackSize = hdr1.DataUnPackSize;
-    m_FileInfo.Crc = hdr0.Crc;
+    m_FileInfo.ManagerCount = header.Part1.ManagerCount;
+    m_FileInfo.ObjectCount = header.Part1.ObjectCount;
+    m_FileInfo.MaxIDSaved = header.Part1.MaxIDSaved;
+    m_FileInfo.Hdr1PackSize = header.Part0.Hdr1PackSize;
+    m_FileInfo.Hdr1UnPackSize = header.Part1.Hdr1UnPackSize;
+    m_FileInfo.DataPackSize = header.Part1.DataPackSize;
+    m_FileInfo.DataUnPackSize = header.Part1.DataUnPackSize;
+    m_FileInfo.Crc = header.Part0.Crc;
 
-    if (hdr0.FileVersion >= 8) {
-        hdr0.Crc = 0;
-        CKDWORD crc = CKComputeDataCRC(hdr0.b, sizeof(hdr0), 0);
+    if (header.Part0.FileVersion >= 8) {
+        header.Part0.Crc = 0;
+        CKDWORD crc = CKComputeDataCRC((char *)(&header.Part0), sizeof(CKFileHeaderPart0), 0);
         int prev = parser->CursorPos();
-        parser->Seek(sizeof(hdr0));
-        crc = parser->ComputeCRC(sizeof(hdr1), crc);
+        parser->Seek(sizeof(CKFileHeaderPart0));
+        crc = parser->ComputeCRC(sizeof(CKFileHeaderPart1), crc);
+        parser->Skip(sizeof(CKFileHeaderPart1));
         crc = parser->ComputeCRC(m_FileInfo.Hdr1PackSize, crc);
+        parser->Skip(m_FileInfo.Hdr1PackSize);
         crc = parser->ComputeCRC(m_FileInfo.DataPackSize, crc);
         parser->Seek(prev);
         if (crc != m_FileInfo.Crc) {
@@ -587,9 +586,9 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileHeaders)(CKBufferParser **ParserPtr) {
             const int count = parser->ReadInt();
             pit->m_Guids.Resize(count);
 
-            parser->Read(&pit->m_Guids[0], sizeof(CKGUID) * count);
+            parser->Read(&pit->m_Guids[0], count * (int)sizeof(CKGUID));
 
-            if (m_Flags & 0x80) {
+            if ((m_Flags & CK_LOAD_CHECKDEPENDENCIES) != 0) {
                 for (int j = 0; j < count; ++j) {
                     CKGUID guid = pit->m_Guids[j];
                     CKPluginEntry *entry = CKGetPluginManager()->FindComponent(guid, pit->m_PluginCategory);
@@ -619,10 +618,10 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileHeaders)(CKBufferParser **ParserPtr) {
         parser->Skip(m_FileInfo.Hdr1PackSize);
     }
 
-    *g_CurrentFileVersion = hdr0.FileVersion;
-    *g_CurrentFileWriteMode = hdr0.FileWriteMode;
+    *g_CurrentFileVersion = header.Part0.FileVersion;
+    *g_CurrentFileWriteMode = header.Part0.FileWriteMode;
 
-    if ((m_Flags & 0x80) && m_FileInfo.FileVersion < 8) {
+    if ((m_Flags & CK_LOAD_CHECKDEPENDENCIES) != 0 && m_FileInfo.FileVersion < 8) {
         m_ReadFileDataDone = TRUE;
         CKERROR err = ReadFileData(&m_Parser);
 
@@ -645,7 +644,6 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileHeaders)(CKBufferParser **ParserPtr) {
 
         // m_PluginsDep.Resize(2);
         CP_CALL_METHOD(m_PluginsDep, g_ResizePluginsDepsArrayFunc, 2);
-
         m_PluginsDep[0].m_PluginCategory = CKPLUGIN_BEHAVIOR_DLL;
         m_PluginsDep[1].m_PluginCategory = CKPLUGIN_MANAGER_DLL;
 
@@ -702,13 +700,10 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
         if (m_FileInfo.FileVersion < 2) {
             *g_WarningForOlderVersion = TRUE;
         } else {
-            int prev = parser->CursorPos();
             if (m_FileInfo.Crc != parser->ComputeCRC(parser->Size() - parser->CursorPos())) {
-               parser->Seek(prev);
                 m_Context->OutputToConsole((CKSTRING)"Crc Error in m_File");
                 return CKERR_FILECRCERROR;
             }
-            parser->Seek(prev);
         }
 
         m_SaveIDMax = parser->ReadInt();
@@ -739,7 +734,7 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
                 }
 
                 const int fileObjectSize = parser->ReadInt();
-                if (m_FileInfo.FileVersion < 7 || (m_Flags & 0x100) == 0 || oit->ObjectCid == CKCID_BEHAVIOR) {
+                if (m_FileInfo.FileVersion < 7 || (m_Flags & CK_LOAD_ONLYBEHAVIORS) == 0 || oit->ObjectCid == CKCID_BEHAVIOR) {
                     oit->Data = parser->ExtractChunk(fileObjectSize, this);
                     if (oit->Data) {
                         const int postPackSize = oit->Data->GetDataSize();
@@ -878,7 +873,7 @@ void CP_FILE_METHOD_NAME(FinishLoading)(CKObjectArray *list, CKDWORD flags) {
         }
     }
 
-    if ((m_Flags & 0x100) == 0) {
+    if ((m_Flags & CK_LOAD_ONLYBEHAVIORS) == 0) {
         for (XArray<CKFileObject>::Iterator it = m_FileObjects.Begin(); it != m_FileObjects.End(); ++it) {
             if (it->Data) {
                 it->Data->RemapObjects(m_Context);
@@ -901,7 +896,7 @@ void CP_FILE_METHOD_NAME(FinishLoading)(CKObjectArray *list, CKDWORD flags) {
 
     int count = 0;
 
-    if ((m_Flags & 0x100) == 0) {
+    if ((m_Flags & CK_LOAD_ONLYBEHAVIORS) == 0) {
         bool hasGridManager = false;
         for (XArray<CKFileManagerData>::Iterator it = m_ManagersData.Begin(); it != m_ManagersData.End(); ++it) {
             CKBaseManager *manager = m_Context->GetManagerByGuid(it->Manager);
@@ -1084,7 +1079,7 @@ void CP_FILE_METHOD_NAME(FinishLoading)(CKObjectArray *list, CKDWORD flags) {
         }
     }
 
-    if ((m_Flags & 0x100) == 0) {
+    if ((m_Flags & CK_LOAD_ONLYBEHAVIORS) == 0) {
         for (XArray<int>::Iterator iit = m_IndexByClassId[CKCID_INTERFACEOBJECTMANAGER].Begin();
              iit != m_IndexByClassId[CKCID_INTERFACEOBJECTMANAGER].End(); ++iit) {
             CKFileObject *it = &m_FileObjects[*iit];
