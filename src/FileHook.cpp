@@ -11,36 +11,36 @@
 
 #include "Utils.h"
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, OpenFile);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, OpenMemory);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, OpenFile)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, OpenMemory)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadFileData);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadFileData)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadFile);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadMemory);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadFile)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadMemory)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, StartSave);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObject);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects2);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects3);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjectAsReference);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, EndSave);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, StartSave)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObject)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects2)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjects3)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, SaveObjectAsReference)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, EndSave)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, IncludeFile);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, IncludeFile)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, IsObjectToBeSaved);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, IsObjectToBeSaved)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadAndSave);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, RemapManagerInt);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, LoadAndSave)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, RemapManagerInt)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ClearData);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ClearData)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ReadFileHeaders);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ReadFileData);
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, FinishLoading);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ReadFileHeaders)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ReadFileData)
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, FinishLoading)
 
-CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ResolveReference);
+CP_DEFINE_METHOD_HOOK_PTRS(CKFile, ResolveReference)
 
 #define CP_FILE_METHOD_NAME(Name) CP_HOOK_CLASS_NAME(CKFile)::CP_FUNC_NAME(Name)
 
@@ -74,6 +74,12 @@ struct CKFileHeader {
 
 typedef void (CKPluginManager::*CKPluginManagerComputeDependenciesListFunc)(CKFile *file);
 static CKPluginManagerComputeDependenciesListFunc g_CKPluginManagerComputeDependenciesListFunc = nullptr;
+
+typedef void (CKContext::*CKContextExecuteManagersPreLoadFunc)();
+static CKContextExecuteManagersPreLoadFunc g_CKContextExecuteManagersPreLoadFunc = nullptr;
+
+typedef void (CKContext::*CKContextExecuteManagersPostLoadFunc)();
+static CKContextExecuteManagersPostLoadFunc g_CKContextExecuteManagersPostLoadFunc = nullptr;
 
 typedef void (CKContext::*CKContextExecuteManagersPreSaveFunc)();
 static CKContextExecuteManagersPreSaveFunc g_CKContextExecuteManagersPreSaveFunc = nullptr;
@@ -320,17 +326,13 @@ CKERROR CP_FILE_METHOD_NAME(OpenMemory)(void *MemoryBuffer, int BufferSize, CK_L
 
 CKERROR CP_FILE_METHOD_NAME(LoadFileData)(CKObjectArray *list) {
 #if CKVERSION == 0x13022002
-    CKERROR err = CK_OK;
-
     if (!m_Parser && !m_ReadFileDataDone)
         return CKERR_INVALIDFILE;
 
-    for (XArray<CKBaseManager *>::Iterator it = m_Context->m_ManagersPreLoad.Begin(); it != m_Context->m_ManagersPreLoad.End(); ++it) {
-        CKBaseManager *manager = *it;
-        m_Context->m_CurrentManager = manager;
-        manager->PreLoad();
-    }
-    m_Context->m_CurrentManager = nullptr;
+    CKERROR err = CK_OK;
+
+    // m_Context->ExecuteManagersPreLoad();
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPreLoadFunc);
     m_Context->m_InLoad = TRUE;
 
     if (m_ReadFileDataDone) {
@@ -369,12 +371,8 @@ CKERROR CP_FILE_METHOD_NAME(LoadFileData)(CKObjectArray *list) {
         m_MappedFile = nullptr;
     }
 
-    for (XArray<CKBaseManager *>::Iterator it = m_Context->m_ManagersPostLoad.Begin(); it != m_Context->m_ManagersPostLoad.End(); ++it) {
-        CKBaseManager *manager = *it;
-        m_Context->m_CurrentManager = manager;
-        manager->PostLoad();
-    }
-    m_Context->m_CurrentManager = nullptr;
+    // m_Context->ExecuteManagersPostLoad();
+    CP_CALL_METHOD_PTR(m_Context, g_CKContextExecuteManagersPostLoadFunc);
     m_Context->m_InLoad = FALSE;
 
     return err;
@@ -1213,7 +1211,7 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
 #if CKVERSION == 0x13022002
     CKBufferParser *parser = *ParserPtr;
 
-    if (m_FileInfo.FileWriteMode & (CKFILE_CHUNKCOMPRESSED_OLD | CKFILE_WHOLECOMPRESSED)) {
+    if ((m_FileInfo.FileWriteMode & (CKFILE_CHUNKCOMPRESSED_OLD | CKFILE_WHOLECOMPRESSED)) != 0) {
         parser = parser->UnPack(m_FileInfo.DataUnPackSize, m_FileInfo.DataPackSize);
         (*ParserPtr)->Skip(m_FileInfo.DataPackSize);
     }
@@ -1221,11 +1219,9 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
     if (m_FileInfo.FileVersion < 8) {
         if (m_FileInfo.FileVersion < 2) {
             *g_WarningForOlderVersion = TRUE;
-        } else {
-            if (m_FileInfo.Crc != parser->ComputeCRC(parser->Size() - parser->CursorPos())) {
-                m_Context->OutputToConsole((CKSTRING)"Crc Error in m_File");
-                return CKERR_FILECRCERROR;
-            }
+        } else if (m_FileInfo.Crc != parser->ComputeCRC(parser->Size() - parser->CursorPos())) {
+            m_Context->OutputToConsole((CKSTRING)"Crc Error in m_File");
+            return CKERR_FILECRCERROR;
         }
 
         m_SaveIDMax = parser->ReadInt();
@@ -1288,7 +1284,8 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
 
                     obj->Data->m_Data = (int *)VxMalloc(dataSize);
                     parser->Read(obj->Data->m_Data, dataSize);
-                    if (dataSize != fileObjectUnPackSize && (m_FileInfo.FileWriteMode & CKFILE_CHUNKCOMPRESSED_OLD) &&
+                    if (dataSize != fileObjectUnPackSize &&
+                        (m_FileInfo.FileWriteMode & CKFILE_CHUNKCOMPRESSED_OLD) &&
                         !obj->Data->UnPack(fileObjectUnPackSize)) {
                         if (obj->Data) {
                             VxDelete<CKStateChunk>(obj->Data);
@@ -1316,7 +1313,7 @@ CKERROR CP_FILE_METHOD_NAME(ReadFileData)(CKBufferParser **ParserPtr) {
     if (m_IncludedFiles.Size() > 0) {
         for (XClassArray<XString>::Iterator iit = m_IncludedFiles.Begin(); iit != m_IncludedFiles.End(); ++iit) {
             const int fileNameLength = parser->ReadInt();
-            char fileName[256] = "";
+            char fileName[256] = {};
             if (fileNameLength > 0) {
                 parser->Read(fileName, fileNameLength);
             }
@@ -1571,7 +1568,7 @@ void CP_FILE_METHOD_NAME(FinishLoading)(CKObjectArray *list, CKDWORD flags) {
         if (!it->Data || it->Options != CKFileObject::CK_FO_DEFAULT)
             continue;
 
-        auto *beh = (CKBehavior *) it->ObjPtr;
+        CKBehavior *beh = (CKBehavior *) it->ObjPtr;
         if (beh) {
             beh->Load(it->Data, this);
             ++count;
@@ -1728,6 +1725,8 @@ bool CP_HOOK_CLASS_NAME(CKFile)::InitHooks(HookApi *api) {
 #if CKVERSION == 0x13022002
     g_CKPluginManagerComputeDependenciesListFunc = utils::ForceReinterpretCast<CKPluginManagerComputeDependenciesListFunc>(base, 0x14D26);
 
+    g_CKContextExecuteManagersPreLoadFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPreLoadFunc>(base, 0x372EA);
+    g_CKContextExecuteManagersPostLoadFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPostLoadFunc>(base, 0x37360);
     g_CKContextExecuteManagersPreSaveFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPreSaveFunc>(base, 0x373D6);
     g_CKContextExecuteManagersPostSaveFunc = utils::ForceReinterpretCast<CKContextExecuteManagersPostSaveFunc>(base, 0x3744C);
     g_CKContextWarnAllBehaviorsFunc = utils::ForceReinterpretCast<CKContextWarnAllBehaviorsFunc>(base, 0x36962);

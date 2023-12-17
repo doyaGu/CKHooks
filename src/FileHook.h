@@ -46,4 +46,4 @@ public:
     static void ShutdownHooks(HookApi *api);
 };
 
-#endif // HOOKS_FILEHOOK_H
+#endif /* HOOKS_FILEHOOK_H */
