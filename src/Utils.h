@@ -57,4 +57,4 @@ namespace utils {
     void *GetModuleBaseAddress(const char *modulePath);
 }
 
-#endif // HOOKS_UTILS_H
+#endif /* HOOKS_UTILS_H */

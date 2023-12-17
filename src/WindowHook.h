@@ -44,4 +44,4 @@ private:
 };
 
 
-#endif //HOOKS_WINDOWHOOK_H
+#endif /* HOOKS_WINDOWHOOK_H */

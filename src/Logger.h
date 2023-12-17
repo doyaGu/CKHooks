@@ -93,4 +93,4 @@ private:
     FILE *m_File;
 };
 
-#endif // HOOKS_LOGGER_H
+#endif /* HOOKS_LOGGER_H */

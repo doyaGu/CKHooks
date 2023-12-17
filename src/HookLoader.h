@@ -1,5 +1,5 @@
-#ifndef HOOKS_PLUGINLOADER_H
-#define HOOKS_PLUGINLOADER_H
+#ifndef HOOKS_HOOKLOADER_H
+#define HOOKS_HOOKLOADER_H
 
 #include <cstdlib>
 #include <cstring>
@@ -65,4 +65,4 @@ private:
     XNHashTable<size_t, int> m_Data;
 };
 
-#endif // HOOKS_PLUGINLOADER_H
+#endif /* HOOKS_HOOKLOADER_H */
